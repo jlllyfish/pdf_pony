@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 0 – Tests widget publipostage</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css">
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  body { background: #F6F6F6; }
+  .wrap { max-width: 1700px; margin: 0 auto; padding: 1.5rem; }
+  .test { background: #fff; border: 1px solid #DDD; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+  .test-tete { display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem; }
+  .test-tete h2 { font-size: 1.1rem; margin: 0; }
+  .log { list-style: none !important; padding: 0 !important; margin: 0; font-size: .85rem; }
+  .log li { display: flex; gap: .4rem; padding: 2px 0; }
+  .log li.ok i { color: #18753C; }
+  .log li.ko { color: #CE0500; }
+  .vignettes { display: flex; gap: .75rem; margin-top: .5rem; flex-wrap: wrap; }
+  .vignettes img { height: 80px; border: 1px solid #DDD; background: repeating-conic-gradient(#EEE 0 25%, #fff 0 50%) 0 0/16px 16px; }
+  .outils { display: flex; gap: .25rem; flex-wrap: wrap; margin: .5rem 0; }
+
+  #editeur .ProseMirror { min-height: 180px; border: 1px solid #CCC; padding: 1rem; outline: none; }
+  #editeur .ProseMirror:focus { border-color: #000091; }
+  #editeur img { max-height: 80px; }
+  .balise { background: #E3E3FD; color: #000091; border-radius: 4px; padding: 0 6px; font-size: .9em; }
+  #editeur table, #rendu table { border-collapse: collapse; margin: .5rem 0; }
+  #editeur td, #editeur th, #rendu td, #rendu th { border: 1px solid #929292; padding: 4px 8px; }
+  #editeur th, #rendu th { background: #EEE; }
+
+  .pages { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-start; margin-top: 1rem; }
+  .pages figure { margin: 0; }
+  .pages figcaption { font-size: .8rem; color: #666; margin-bottom: .25rem; }
+  #rendu { width: 210mm; height: 297mm; padding: 20mm; background: #fff; overflow: hidden;
+           box-shadow: 0 2px 12px rgba(0,0,0,.15); font-family: "Marianne", arial, sans-serif;
+           color: #161616; font-size: 11pt; line-height: 1.5; }
+  #rendu ul { list-style-type: disc; padding-left: 1.5em; }
+  #rendu ol { list-style-type: decimal; padding-left: 1.5em; }
+  #rendu img { max-height: 30mm; max-width: 60mm; margin-right: 6mm; }
+  #rendu hr { margin: 6mm 0; }
+  #capture { width: 210mm; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1 class="fr-h4">Phase 0 — levée des risques</h1>
+  <div id="alerte"></div>
+
+  <section class="test">
+    <div class="test-tete"><h2>1. Pièces jointes Grist</h2><span id="b-1" class="fr-badge fr-badge--sm">En attente</span></div>
+    <ul class="log" id="log-1"></ul>
+    <div class="vignettes" id="vignettes"></div>
+  </section>
+
+  <section class="test">
+    <div class="test-tete"><h2>2. Éditeur TipTap</h2><span id="b-2" class="fr-badge fr-badge--sm">En attente</span></div>
+    <ul class="log" id="log-2"></ul>
+    <div class="outils">
+      <button class="fr-btn fr-btn--sm fr-btn--tertiary" data-cmd="gras"><i class="ri-bold"></i></button>
+      <button class="fr-btn fr-btn--sm fr-btn--tertiary" data-cmd="italique"><i class="ri-italic"></i></button>
+      <button class="fr-btn fr-btn--sm fr-btn--tertiary" data-cmd="h2"><i class="ri-h-2"></i></button>
+      <button class="fr-btn fr-btn--sm fr-btn--tertiary" data-cmd="puces"><i class="ri-list-unordered"></i></button>
+      <button class="fr-btn fr-btn--sm fr-btn--tertiary" data-cmd="numeros"><i class="ri-list-ordered"></i></button>
+      <button class="fr-btn fr-btn--sm fr-btn--tertiary" data-cmd="tableau"><i class="ri-table-line"></i></button>
+      <button class="fr-btn fr-btn--sm fr-btn--tertiary" data-cmd="balise"><i class="ri-braces-line"></i>&nbsp;Balise</button>
+      <button class="fr-btn fr-btn--sm fr-btn--tertiary" data-cmd="image"><i class="ri-image-line"></i>&nbsp;Image</button>
+    </div>
+    <div id="editeur"></div>
+  </section>
+
+  <section class="test">
+    <div class="test-tete"><h2>3. Capture et PDF</h2><span id="b-3" class="fr-badge fr-badge--sm">En attente</span></div>
+    <ul class="log" id="log-3"></ul>
+    <div class="outils">
+      <button class="fr-btn fr-btn--sm" id="btn-capturer"><i class="ri-camera-line"></i>&nbsp;Capturer le rendu</button>
+      <button class="fr-btn fr-btn--sm fr-btn--secondary" id="btn-pdf" disabled><i class="ri-file-pdf-2-line"></i>&nbsp;Télécharger le PDF</button>
+    </div>
+    <div class="pages">
+      <figure><figcaption>Rendu HTML</figcaption><div id="rendu"></div></figure>
+      <figure><figcaption>Image capturée (celle du PDF)</figcaption><img id="capture" alt=""></figure>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+// ── Configuration ──────────────────────────────────────────────
+const TABLE_MODELES = "Modeles_PDF";
+const COL_IMAGES = "Images";
+const TIPTAP_VERSION = "3.31.3";
+const TIPTAP_URLS = {
+  core:    `https://esm.sh/@tiptap/core@${TIPTAP_VERSION}`,
+  starter: `https://esm.sh/@tiptap/starter-kit@${TIPTAP_VERSION}`,
+  image:   `https://esm.sh/@tiptap/extension-image@${TIPTAP_VERSION}`,
+  table:   `https://esm.sh/@tiptap/extension-table@${TIPTAP_VERSION}`,
+};
+// ───────────────────────────────────────────────────────────────
+
+const $ = (id) => document.getElementById(id);
+const BADGES = { wait: "", run: "fr-badge--info", ok: "fr-badge--success", ko: "fr-badge--error", check: "fr-badge--warning" };
+const blobs = [];     // { id, url, nom }
+let editor = null;
+let pdf = null;
+
+function badge(n, etat, texte) {
+  $(`b-${n}`).className = `fr-badge fr-badge--sm ${BADGES[etat]}`;
+  $(`b-${n}`).textContent = texte;
+}
+function log(n, msg, ok = true) {
+  const li = document.createElement("li");
+  li.className = ok ? "ok" : "ko";
+  li.innerHTML = `<i class="${ok ? "ri-checkbox-circle-line" : "ri-close-circle-line"}"></i>`;
+  const span = document.createElement("span");
+  span.textContent = msg;
+  li.appendChild(span);
+  $(`log-${n}`).appendChild(li);
+}
+function alerte(msg) {
+  $("alerte").innerHTML = `<div class="fr-alert fr-alert--error fr-alert--sm fr-mb-2w"><p></p></div>`;
+  $("alerte").querySelector("p").textContent = msg;
+}
+// Cellule Pièces jointes : ["L", 12, 13] ou [12, 13] selon le contexte
+function idsPJ(v) {
+  if (!Array.isArray(v)) return [];
+  return (v[0] === "L" ? v.slice(1) : v).filter(Number.isInteger);
+}
+
+// ── Test 1 : pièce jointe → blob URL ───────────────────────────
+async function test1() {
+  badge(1, "run", "En cours");
+  try {
+    const t = await grist.docApi.fetchTable(TABLE_MODELES);
+    log(1, `Table ${TABLE_MODELES} lue (${t.id.length} ligne(s))`);
+    if (!(COL_IMAGES in t)) throw new Error(`Colonne ${COL_IMAGES} introuvable dans ${TABLE_MODELES}`);
+    const ids = [...new Set(t[COL_IMAGES].flatMap(idsPJ))];
+    if (!ids.length) throw new Error(`Aucune pièce jointe dans la colonne ${COL_IMAGES}`);
+    log(1, `${ids.length} pièce(s) jointe(s) trouvée(s) : ${ids.join(", ")}`);
+
+    const meta = {};
+    try {
+      const a = await grist.docApi.fetchTable("_grist_Attachments");
+      a.id.forEach((id, i) => meta[id] = { nom: a.fileName[i], w: a.imageWidth[i], h: a.imageHeight[i] });
+      log(1, "Métadonnées lues dans _grist_Attachments");
+    } catch (e) { log(1, `Métadonnées indisponibles : ${e.message}`, false); }
+
+    const { token, baseUrl, ttl } = await grist.docApi.getAccessToken({ readOnly: true });
+    log(1, `Jeton obtenu (ttl = ${ttl}) — ${baseUrl}`);
+
+    for (const id of ids) {
+      const r = await fetch(`${baseUrl}/attachments/${id}/download?auth=${token}`);
+      if (!r.ok) throw new Error(`Pièce jointe ${id} : HTTP ${r.status}`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const nom = meta[id]?.nom || `PJ ${id}`;
+      blobs.push({ id, url, nom });
+      log(1, `${nom} : ${blob.type || "type inconnu"}, ${Math.round(blob.size / 1024)} Ko, ${img.naturalWidth}×${img.naturalHeight} px`);
+      img.alt = nom;
+      $("vignettes").appendChild(img);
+    }
+    badge(1, "ok", "Réussi");
+  } catch (e) {
+    log(1, e.message, false);
+    if (e instanceof TypeError) log(1, "Échec réseau : probable blocage CORS (voir la console)", false);
+    if (/access|permission/i.test(e.message)) alerte("Le widget doit avoir l'accès complet au document.");
+    badge(1, "ko", "Échec");
+  }
+}
+
+// ── Test 2 : TipTap dans l'iframe ──────────────────────────────
+async function test2() {
+  badge(2, "run", "En cours");
+  try {
+    const [core, sk, im, tb] = await Promise.all(Object.values(TIPTAP_URLS).map((u) => import(u)));
+    const { Editor, Node, mergeAttributes } = core;
+    const StarterKit = sk.StarterKit ?? sk.default;
+    log(2, `TipTap ${TIPTAP_VERSION} chargé depuis esm.sh`);
+
+    // Balise {{Colonne}} : nœud atomique non éditable
+    const Balise = Node.create({
+      name: "balise", group: "inline", inline: true, atom: true, selectable: true,
+      addAttributes() {
+        return { col: { default: null, parseHTML: (el) => el.getAttribute("data-balise"), renderHTML: (a) => ({ "data-balise": a.col }) } };
+      },
+      parseHTML() { return [{ tag: "span[data-balise]" }]; },
+      renderHTML({ node, HTMLAttributes }) {
+        return ["span", mergeAttributes(HTMLAttributes, { class: "balise" }), `{{${node.attrs.col}}}`];
+      },
+    });
+
+    // Image avec référence à la pièce jointe Grist
+    const ImagePJ = im.Image.extend({
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+          att: { default: null, parseHTML: (el) => el.getAttribute("data-att"), renderHTML: (a) => (a.att ? { "data-att": a.att } : {}) },
+        };
+      },
+    });
+
+    editor = new Editor({
+      element: $("editeur"),
+      extensions: [StarterKit, ImagePJ, tb.TableKit, Balise],
+      content: `<h2>Titre du courrier</h2>
+        <p>Bonjour <span data-balise="Nom"></span>, texte <strong>gras</strong> et <em>italique</em> 🎉 ✅ 📄</p>
+        <ul><li>Puce</li><li>Autre puce</li></ul>
+        <ol><li>Premier</li><li>Deuxième</li></ol>
+        <table><tr><th>Colonne A</th><th>Colonne B</th></tr><tr><td>1</td><td>2</td></tr></table>
+        <p></p>`,
+    });
+
+    if (blobs.length) editor.commands.insertContentAt(editor.state.doc.content.size, { type: "image", attrs: { src: blobs[0].url, att: blobs[0].id } });
+
+    const types = new Set();
+    let attOk = false;
+    (function walk(n) {
+      types.add(n.type);
+      if (n.type === "image" && n.attrs?.att) attOk = true;
+      (n.content || []).forEach(walk);
+    })(editor.getJSON());
+    const attendus = ["heading", "bulletList", "orderedList", "table", "balise"];
+    const manquants = attendus.filter((t) => !types.has(t));
+    if (manquants.length) throw new Error(`Nœuds absents du JSON : ${manquants.join(", ")}`);
+    log(2, "Titres, listes, tableau et balise présents dans le JSON");
+    if (blobs.length) log(2, attOk ? "Image insérée, référence data-att conservée" : "Image insérée mais data-att perdu", attOk);
+
+    const CMD = {
+      gras: (c) => c.toggleBold(),
+      italique: (c) => c.toggleItalic(),
+      h2: (c) => c.toggleHeading({ level: 2 }),
+      puces: (c) => c.toggleBulletList(),
+      numeros: (c) => c.toggleOrderedList(),
+      tableau: (c) => c.insertTable({ rows: 2, cols: 2, withHeaderRow: true }),
+      balise: (c) => c.insertContent({ type: "balise", attrs: { col: "Nom" } }),
+      image: (c) => (blobs.length ? c.setImage({ src: blobs[0].url, att: blobs[0].id }) : c),
+    };
+    document.querySelectorAll("[data-cmd]").forEach((b) =>
+      b.addEventListener("click", () => CMD[b.dataset.cmd](editor.chain().focus()).run()));
+    badge(2, attOk || !blobs.length ? "ok" : "ko", attOk || !blobs.length ? "Réussi" : "Partiel");
+  } catch (e) {
+    console.error(e);
+    log(2, e.message, false);
+    badge(2, "ko", "Échec");
+  }
+}
+
+// ── Test 3 : rendu fusionné → html2canvas → jsPDF ──────────────
+function construireRendu() {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = editor ? editor.getHTML() : "<p>(éditeur non chargé)</p>";
+  tmp.querySelectorAll("[data-balise]").forEach((el) => el.replaceWith(`Valeur de ${el.dataset.balise}`));
+  return `
+    <h1 style="font-size:18pt">Rendu de contrôle</h1>
+    <p>Marianne <b>gras</b> <i>italique</i> — accents éèàçôÉ « guillemets »</p>
+    <p>Emojis : 🎉 ✅ 📄 🌾 🇫🇷 👩‍🌾</p>
+    <ul><li>Puce 1</li><li>Puce 2<ul><li>Sous-puce</li></ul></li></ul>
+    <ol><li>Un</li><li>Deux</li></ol>
+    <table><tr><th>Diplôme</th><th>Heures</th></tr><tr><td>BTSA</td><td>1 350</td></tr></table>
+    <div>${blobs.map((b) => `<img src="${b.url}" alt="${b.nom}">`).join("")}</div>
+    <hr>
+    ${tmp.innerHTML}`;
+}
+
+async function test3() {
+  badge(3, "run", "En cours");
+  $("log-3").innerHTML = "";
+  $("btn-pdf").disabled = true;
+  try {
+    const page = $("rendu");
+    page.innerHTML = construireRendu();
+
+    await document.fonts.ready;
+    const marianne = document.fonts.check('16px "Marianne"');
+    log(3, marianne ? "Police Marianne chargée" : "Police Marianne non détectée", marianne);
+
+    const imgs = [...page.querySelectorAll("img")];
+    await Promise.all(imgs.map((i) => i.decode()));
+    log(3, `${imgs.length} image(s) décodée(s) avant capture`);
+
+    const t0 = performance.now();
+    const canvas = await html2canvas(page, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+    let data;
+    try { data = canvas.toDataURL("image/jpeg", 0.92); }
+    catch { throw new Error("Canvas « sali » (tainted) : une image n'est pas de même origine"); }
+    log(3, `Capture ${canvas.width}×${canvas.height} px en ${Math.round(performance.now() - t0)} ms`);
+    $("capture").src = data;
+
+    const { jsPDF } = window.jspdf;
+    pdf = new jsPDF({ unit: "mm", format: "a4" });
+    pdf.addImage(data, "JPEG", 0, 0, 210, 297);
+    pdf.setFontSize(8).setTextColor(100);
+    pdf.text("Page 1/1 — pied de page en texte natif jsPDF", 200, 291, { align: "right" });
+    $("btn-pdf").disabled = false;
+    log(3, "PDF prêt : comparez les deux pages ci-dessous, puis ouvrez le PDF");
+    badge(3, "check", "À contrôler à l'œil");
+  } catch (e) {
+    console.error(e);
+    log(3, e.message, false);
+    badge(3, "ko", "Échec");
+  }
+}
+
+$("btn-capturer").addEventListener("click", test3);
+$("btn-pdf").addEventListener("click", () => pdf && pdf.save("phase0-test.pdf"));
+
+grist.ready({ requiredAccess: "full" });
+await test1();
+await test2();
+await test3();
+</script>
+</body>
+</html>
