@@ -275,6 +275,9 @@
           <button class="fr-btn fr-btn--sm fr-btn--secondary" id="btn-popup">
             <i class="ri-external-link-line"></i>&nbsp;Imprimer (fenêtre)
           </button>
+          <button class="fr-btn fr-btn--sm" id="btn-srcdoc">
+            <i class="ri-pages-line"></i>&nbsp;Imprimer multipage (isolé)
+          </button>
         </div>
         <div class="pages">
           <figure>
@@ -675,6 +678,105 @@
           null,
         );
       });
+
+      // ── Test 5 : impression isolée (iframe srcdoc) + pagination ────
+      const FONTS_URL =
+        "https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/fonts/";
+      const CSS_IMPRESSION = `
+  @font-face { font-family: "Marianne"; font-weight: 400; src: url("${FONTS_URL}Marianne-Regular.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 400; font-style: italic; src: url("${FONTS_URL}Marianne-Regular_Italic.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 700; src: url("${FONTS_URL}Marianne-Bold.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 700; font-style: italic; src: url("${FONTS_URL}Marianne-Bold_Italic.woff2") format("woff2"); }
+  @page {
+    size: A4; margin: 20mm 20mm 22mm;
+    @bottom-left  { content: "DRAAF-SRFD Occitanie"; font: 8pt "Marianne", arial, sans-serif; color: #666; }
+    @bottom-right { content: "Page " counter(page) "/" counter(pages); font: 8pt "Marianne", arial, sans-serif; color: #666; }
+  }
+  html, body { margin: 0; }
+  body { font-family: "Marianne", arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #161616; }
+  h1 { font-size: 18pt; margin: 0 0 4mm; }
+  h2 { font-size: 14pt; margin: 6mm 0 3mm; break-after: avoid; }
+  p { margin: 0 0 3mm; }
+  ul { list-style-type: disc; padding-left: 1.5em; }
+  ol { list-style-type: decimal; padding-left: 1.5em; }
+  table { border-collapse: collapse; margin: 3mm 0; }
+  th, td { border: 1px solid #929292; padding: 4px 8px; text-align: left; }
+  th { background: #EEE; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  thead { display: table-header-group; }
+  tr, img { break-inside: avoid; }
+  img { max-height: 30mm; max-width: 60mm; margin-right: 6mm; }
+  hr { border: none; border-top: 1px solid #DDD; margin: 6mm 0; }
+  .saut { break-before: page; }
+`;
+
+      function documentImpression(corps, titre) {
+        return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>${titre}</title>
+    <style>${CSS_IMPRESSION}</style></head><body>${corps}</body></html>`;
+      }
+
+      async function imprimerSrcdoc() {
+        const LOREM =
+          "Texte de remplissage pour vérifier la coupure des paragraphes entre deux pages, sans ligne coupée en deux ni chevauchement avec le pied de page.";
+        const corps = `${construireRendu()}
+    <div class="saut"></div>
+    <h2>Page forcée par un saut de page manuel</h2>
+    ${Array.from({ length: 12 }, (_, i) => `<p>Paragraphe ${i + 1}. ${LOREM}</p>`).join("")}
+    <h2>Tableau long (l'en-tête doit se répéter)</h2>
+    <table>
+      <thead><tr><th>N°</th><th>Établissement</th><th>Heures</th></tr></thead>
+      <tbody>${Array.from(
+        { length: 45 },
+        (_, i) =>
+          `<tr><td>${i + 1}</td><td>Lycée agricole n°${i + 1}</td><td>${(i + 1) * 35}</td></tr>`,
+      ).join("")}</tbody>
+    </table>`;
+
+        $("frame-impression")?.remove();
+        const frame = document.createElement("iframe");
+        frame.id = "frame-impression";
+        frame.style.cssText =
+          "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+        const charge = new Promise((r) => (frame.onload = r));
+        frame.srcdoc = documentImpression(corps, "phase0-multipage");
+        document.body.appendChild(frame);
+        await charge;
+
+        const doc = frame.contentDocument;
+        await Promise.all(
+          [
+            "400 16px Marianne",
+            "700 16px Marianne",
+            "italic 400 16px Marianne",
+          ].map((f) => doc.fonts.load(f)),
+        );
+        await doc.fonts.ready;
+        const imgs = [...doc.images];
+        const ko = (
+          await Promise.all(
+            imgs.map((i) =>
+              i.decode().then(
+                () => 0,
+                () => 1,
+              ),
+            ),
+          )
+        ).reduce((a, b) => a + b, 0);
+        const marianne = doc.fonts.check('16px "Marianne"');
+        log(
+          3,
+          `Iframe isolée prête : ${imgs.length - ko}/${imgs.length} image(s), Marianne ${marianne ? "chargée" : "absente"}`,
+          ko === 0 && marianne,
+        );
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      }
+
+      $("btn-srcdoc").addEventListener("click", () =>
+        imprimerSrcdoc().catch((e) => {
+          console.error(e);
+          log(3, `Impression isolée : ${e.message}`, false);
+        }),
+      );
 
       grist.ready({ requiredAccess: "full" });
       await test1();
