@@ -247,13 +247,28 @@
       }
 
       /* ── Balises dans l'éditeur ── */
+      .feuille .ProseMirror a {
+        cursor: pointer;
+      }
+      .pop-lien {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      .pop-lien input {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 5px 8px;
+        font: inherit;
+        font-size: 0.85rem;
+        width: 280px;
+      }
       .balise {
         display: inline-block;
         background: #e3e3fd;
         color: #000091;
         border-radius: 1rem;
         padding: 0 0.55rem;
-        font-size: 0.85em;
         line-height: 1.5;
         font-weight: 500;
         cursor: grab;
@@ -504,6 +519,9 @@
             <i class="ri-delete-bin-line"></i>
           </button>
           <span class="sep"></span>
+          <button class="tb" id="btn-lien" title="Insérer ou modifier un lien">
+            <i class="ri-link"></i>
+          </button>
           <button class="tb" id="btn-images" title="Insérer une image">
             <i class="ri-image-line"></i>
           </button>
@@ -528,6 +546,18 @@
       </section>
     </div>
 
+    <div id="pop-lien" class="pop pop-lien" hidden>
+      <input
+        id="champ-lien"
+        type="url"
+        placeholder="https://exemple.fr"
+        aria-label="Adresse du lien"
+      />
+      <button class="fr-btn fr-btn--sm" id="btn-lien-ok">Appliquer</button>
+      <button class="tb" id="btn-lien-suppr" title="Retirer le lien">
+        <i class="ri-link-unlink"></i>
+      </button>
+    </div>
     <div id="pop-images" class="pop" hidden></div>
     <div id="pop-emoji" class="pop pop-emoji" hidden></div>
     <div id="menu-suggest" class="pop suggest" hidden></div>
@@ -587,6 +617,7 @@
       let enApercu = false;
       let contenuSauve = null;
       let minuteurSauvegarde = null;
+      let dernierJsonSauve = null;
 
       // ════════════════════════════════════════════════════════════════
       // Utilitaires
@@ -1076,18 +1107,63 @@
         });
         editor.on("transaction", majOutils);
         editor.on("update", sauvegarderPlusTard);
+        dernierJsonSauve = JSON.stringify(nettoyerBlobs(editor.getJSON()));
+        restaurerImages();
+      }
+
+      // Recharge les pièces jointes dont la blob URL a expiré
+      async function restaurerImages() {
+        const aCharger = [];
+        editor.state.doc.descendants((node, pos) => {
+          if (
+            node.type.name === "image" &&
+            node.attrs.att &&
+            !String(node.attrs.src || "").startsWith("blob:")
+          )
+            aCharger.push({ pos, att: node.attrs.att });
+        });
+        for (const { pos, att } of aCharger) {
+          try {
+            const src = await urlPJ(att);
+            const n = editor.state.doc.nodeAt(pos);
+            if (n?.type.name === "image")
+              editor.view.dispatch(
+                editor.state.tr.setNodeMarkup(pos, undefined, {
+                  ...n.attrs,
+                  src,
+                }),
+              );
+          } catch {
+            console.warn(`Image ${att} indisponible`);
+          }
+        }
+        if (aCharger.length)
+          dernierJsonSauve = JSON.stringify(nettoyerBlobs(editor.getJSON()));
       }
 
       function sauvegarderPlusTard() {
         clearTimeout(minuteurSauvegarde);
         minuteurSauvegarde = setTimeout(sauvegarder, 600);
       }
+      // Les blob URL sont éphémères : on ne garde que la référence data-att
+      function nettoyerBlobs(noeud) {
+        if (Array.isArray(noeud)) return noeud.map(nettoyerBlobs);
+        if (!noeud || typeof noeud !== "object") return noeud;
+        const n = { ...noeud };
+        if (n.type === "image" && n.attrs?.att)
+          n.attrs = { ...n.attrs, src: null };
+        if (n.content) n.content = nettoyerBlobs(n.content);
+        return n;
+      }
       function sauvegarder() {
         clearTimeout(minuteurSauvegarde);
-        if (editor)
-          grist
-            .setOption("contenu", editor.getJSON())
-            .catch((e) => console.warn("Sauvegarde impossible :", e));
+        if (!editor) return;
+        const json = JSON.stringify(nettoyerBlobs(editor.getJSON()));
+        if (json === dernierJsonSauve) return;
+        dernierJsonSauve = json;
+        grist
+          .setOption("contenu", JSON.parse(json))
+          .catch((e) => console.warn("Sauvegarde impossible :", e));
       }
       addEventListener("pagehide", sauvegarder);
       addEventListener("blur", sauvegarder);
@@ -1139,6 +1215,7 @@
         $("sel-style").value =
           [1, 2, 3].find((l) => editor.isActive("heading", { level: l })) ??
           "p";
+        $("btn-lien").classList.toggle("actif", editor.isActive("link"));
       }
       $("outils").addEventListener("mousedown", (e) => {
         if (e.target.closest("button")) e.preventDefault();
@@ -1169,12 +1246,11 @@
         pop.style.top = `${r.bottom + 4}px`;
       }
       document.addEventListener("mousedown", (e) => {
-        if (!e.target.closest(".pop, #btn-images, #btn-emoji"))
+        if (!e.target.closest(".pop, #btn-images, #btn-emoji, #btn-lien"))
           document
             .querySelectorAll(".pop:not(.suggest)")
             .forEach((p) => (p.hidden = true));
       });
-
       $("pop-emoji").innerHTML = EMOJIS.map(
         (e) => `<button type="button">${e}</button>`,
       ).join("");
@@ -1189,6 +1265,45 @@
       $("btn-emoji").addEventListener("click", () =>
         ouvrirPop($("pop-emoji"), $("btn-emoji")),
       );
+
+      $("btn-lien").addEventListener("click", () => {
+        const pop = $("pop-lien");
+        ouvrirPop(pop, $("btn-lien"));
+        if (pop.hidden) return;
+        $("champ-lien").value = editor.getAttributes("link").href || "";
+        $("btn-lien-suppr").disabled = !editor.isActive("link");
+        $("champ-lien").focus();
+      });
+      $("pop-lien").addEventListener("mousedown", (e) => {
+        if (e.target.tagName !== "INPUT") e.preventDefault();
+      });
+      function appliquerLien() {
+        let href = $("champ-lien").value.trim();
+        const c = editor.chain().focus().extendMarkRange("link");
+        if (!href) c.unsetLink().run();
+        else {
+          if (!/^(https?:|mailto:|tel:)/i.test(href)) href = `https://${href}`;
+          if (editor.state.selection.empty && !editor.isActive("link"))
+            c.insertContent(`<a href="${esc(href)}">${esc(href)}</a> `).run();
+          else c.setLink({ href }).run();
+        }
+        $("pop-lien").hidden = true;
+      }
+      $("btn-lien-ok").addEventListener("click", appliquerLien);
+      $("btn-lien-suppr").addEventListener("click", () => {
+        editor.chain().focus().extendMarkRange("link").unsetLink().run();
+        $("pop-lien").hidden = true;
+      });
+      $("champ-lien").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          appliquerLien();
+        }
+        if (e.key === "Escape") {
+          $("pop-lien").hidden = true;
+          editor.commands.focus();
+        }
+      });
 
       $("btn-images").addEventListener("click", async () => {
         const pop = $("pop-images");
@@ -1316,24 +1431,24 @@
       // ════════════════════════════════════════════════════════════════
       function cssContenu(s) {
         return `
-  ${s} { font-family: "Marianne", arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #161616; }
-  ${s} h1 { font-size: 20pt; line-height: 1.25; font-weight: 700; margin: 0 0 4mm; color: #161616; }
-  ${s} h2 { font-size: 15pt; line-height: 1.3; font-weight: 700; margin: 5mm 0 3mm; color: #161616; }
-  ${s} h3 { font-size: 12.5pt; line-height: 1.35; font-weight: 700; margin: 4mm 0 2mm; color: #161616; }
-  ${s} p { margin: 0 0 3mm; font-size: inherit; line-height: inherit; }
-  ${s} p:empty { min-height: 1.5em; }
-  ${s} ul, ${s} ol { margin: 0 0 3mm; padding-left: 6mm; }
-  ${s} ul { list-style-type: disc; }
-  ${s} ol { list-style-type: decimal; }
-  ${s} li { margin: 0; padding: 0; }
-  ${s} li::marker { font-weight: 400; }
-  ${s} li > p { margin: 0; }
-  ${s} table { border-collapse: collapse; margin: 0 0 3mm; }
-  ${s} th, ${s} td { border: 1px solid #929292; padding: 1.5mm 2.5mm; text-align: left; vertical-align: top; min-width: 2em; }
-  ${s} th { background: #EEEEEE; font-weight: 700; }
-  ${s} td > p, ${s} th > p { margin: 0; }
-  ${s} img { max-width: 100%; height: auto; }
-  ${s} a { color: #000091; }`;
+        ${s} { font-family: "Marianne", arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #161616; }
+        ${s} h1 { font-size: 20pt; line-height: 1.25; font-weight: 700; margin: 0 0 4mm; color: #161616; }
+        ${s} h2 { font-size: 15pt; line-height: 1.3; font-weight: 700; margin: 5mm 0 3mm; color: #161616; }
+        ${s} h3 { font-size: 12.5pt; line-height: 1.35; font-weight: 700; margin: 4mm 0 2mm; color: #161616; }
+        ${s} p { margin: 0 0 3mm; font-size: inherit; line-height: inherit; }
+        ${s} p:empty { min-height: 1.5em; }
+        ${s} ul, ${s} ol { margin: 0 0 3mm; padding-left: 6mm; }
+        ${s} ul { list-style-type: disc; }
+        ${s} ol { list-style-type: decimal; }
+        ${s} li { margin: 0; padding: 0; }
+        ${s} li::marker { font-weight: 400; }
+        ${s} li > p { margin: 0; }
+        ${s} table { border-collapse: collapse; margin: 0 0 3mm; }
+        ${s} th, ${s} td { border: 1px solid #929292; padding: 1.5mm 2.5mm; text-align: left; vertical-align: top; min-width: 2em; }
+        ${s} th { background: #EEEEEE; font-weight: 700; }
+        ${s} td > p, ${s} th > p { margin: 0; }
+        ${s} img { max-width: 100%; height: auto; }
+        ${s} a { color: #000091; }`;
       }
       document.head.insertAdjacentHTML(
         "beforeend",
@@ -1341,27 +1456,27 @@
       );
 
       const CSS_IMPRESSION = `
-  @font-face { font-family: "Marianne"; font-weight: 400; src: url("${FONTS_URL}Marianne-Regular.woff2") format("woff2"); }
-  @font-face { font-family: "Marianne"; font-weight: 400; font-style: italic; src: url("${FONTS_URL}Marianne-Regular_Italic.woff2") format("woff2"); }
-  @font-face { font-family: "Marianne"; font-weight: 500; src: url("${FONTS_URL}Marianne-Medium.woff2") format("woff2"); }
-  @font-face { font-family: "Marianne"; font-weight: 700; src: url("${FONTS_URL}Marianne-Bold.woff2") format("woff2"); }
-  @font-face { font-family: "Marianne"; font-weight: 700; font-style: italic; src: url("${FONTS_URL}Marianne-Bold_Italic.woff2") format("woff2"); }
-  @page {
-    size: A4; margin: 20mm 20mm 22mm;
-    @bottom-left  { content: "${PIED_GAUCHE}"; font: 8pt "Marianne", arial, sans-serif; color: #666; }
-    @bottom-right { content: "Page " counter(page) "/" counter(pages); font: 8pt "Marianne", arial, sans-serif; color: #666; }
-  }
-  html, body { margin: 0; }
-  @media screen { body { padding: 20mm; } }
-  ${cssContenu("body")}
-  th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  thead { display: table-header-group; }
-  tr, img { break-inside: avoid; }
-  h1, h2, h3 { break-after: avoid; }
-  .saut-page { break-before: page; height: 0; margin: 0; border: 0; }
-  .fiche + .fiche { break-before: page; }
-  .valeur { white-space: pre-line; }
-`;
+        @font-face { font-family: "Marianne"; font-weight: 400; src: url("${FONTS_URL}Marianne-Regular.woff2") format("woff2"); }
+        @font-face { font-family: "Marianne"; font-weight: 400; font-style: italic; src: url("${FONTS_URL}Marianne-Regular_Italic.woff2") format("woff2"); }
+        @font-face { font-family: "Marianne"; font-weight: 500; src: url("${FONTS_URL}Marianne-Medium.woff2") format("woff2"); }
+        @font-face { font-family: "Marianne"; font-weight: 700; src: url("${FONTS_URL}Marianne-Bold.woff2") format("woff2"); }
+        @font-face { font-family: "Marianne"; font-weight: 700; font-style: italic; src: url("${FONTS_URL}Marianne-Bold_Italic.woff2") format("woff2"); }
+        @page {
+          size: A4; margin: 20mm 20mm 22mm;
+          @bottom-left  { content: "${PIED_GAUCHE}"; font: 8pt "Marianne", arial, sans-serif; color: #666; }
+          @bottom-right { content: "Page " counter(page) "/" counter(pages); font: 8pt "Marianne", arial, sans-serif; color: #666; }
+        }
+        html, body { margin: 0; }
+        @media screen { body { padding: 20mm; } }
+        ${cssContenu("body")}
+        th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        thead { display: table-header-group; }
+        tr, img { break-inside: avoid; }
+        h1, h2, h3 { break-after: avoid; }
+        .saut-page { break-before: page; height: 0; margin: 0; border: 0; }
+        .fiche + .fiche { break-before: page; }
+        .valeur { white-space: pre-line; }
+      `;
       const POLICES = [
         "400 16px Marianne",
         "italic 400 16px Marianne",
@@ -1371,7 +1486,7 @@
 
       function documentImpression(corps) {
         return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Document</title>
-    <style>${CSS_IMPRESSION}</style></head><body>${corps}</body></html>`;
+          <style>${CSS_IMPRESSION}</style></head><body>${corps}</body></html>`;
       }
       async function attendreRessources(doc) {
         await Promise.all(
