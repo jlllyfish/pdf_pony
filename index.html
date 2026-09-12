@@ -102,28 +102,77 @@
         width: 250px;
         flex-shrink: 0;
         background: #fff;
-        border-right: 1px solid #ddd;
         display: flex;
         flex-direction: column;
         padding: 0.75rem;
         gap: 0.5rem;
         min-height: 0;
       }
+      .panneau-gauche {
+        border-right: 1px solid #ddd;
+      }
+      .panneau-droit {
+        width: 290px;
+        border-left: 1px solid #ddd;
+        overflow: auto;
+      }
       .panneau h2 {
         font-size: 0.9rem;
         margin: 0;
+      }
+      .panneau h3 {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #000091;
+        margin: 0.5rem 0 0;
       }
       .panneau .aide {
         font-size: 0.75rem;
         color: #666;
         margin: 0;
       }
-      #filtre-champs {
+      .panneau input[type="text"],
+      .panneau input[type="number"],
+      .panneau input[type="search"],
+      .panneau select {
         border: 1px solid #ccc;
         border-radius: 4px;
         padding: 5px 8px;
         font: inherit;
         font-size: 0.85rem;
+        background: #fff;
+        color: #161616;
+        width: 100%;
+      }
+      .ligne2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+      }
+      .ligne3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0.35rem;
+      }
+      .champ {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+      .champ > span {
+        font-size: 0.72rem;
+        color: #666;
+      }
+      .bascule {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.8rem;
+        color: #3a3a3a;
+      }
+      .bascule input {
+        width: auto;
       }
       #liste-champs {
         overflow: auto;
@@ -145,6 +194,14 @@
         display: flex;
         flex-direction: column;
         min-width: 0;
+      }
+      #apercu-nom {
+        font-size: 0.75rem;
+        color: #000091;
+        word-break: break-all;
+        background: #f6f6f6;
+        padding: 0.3rem 0.4rem;
+        border-radius: 4px;
       }
 
       /* ── Barre d'outils de l'éditeur ── */
@@ -193,29 +250,34 @@
         width: 120px;
       }
 
-      /* ── Feuille A4 ── */
+      /* ── Feuille ── */
       .defil {
         flex: 1;
         overflow: auto;
         padding: 24px;
       }
       .feuille {
-        width: 210mm;
-        min-height: 297mm;
         margin: 0 auto;
         background: #fff;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
-        padding: 20mm;
         box-sizing: border-box;
+        position: relative;
+      }
+      .feuille::before,
+      .feuille::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 0;
+        border-top: 1px dashed #e0e0e0;
+        pointer-events: none;
       }
       .feuille .ProseMirror {
         outline: none;
-        min-height: 257mm;
       }
       #apercu {
         display: block;
-        width: 210mm;
-        min-height: 297mm;
         margin: 0 auto;
         border: 0;
         background: #fff;
@@ -427,6 +489,9 @@
         >
           <i class="ri-refresh-line"></i>
         </button>
+        <button class="tb" id="btn-mise-en-page" title="Mise en page">
+          <i class="ri-layout-3-line"></i>
+        </button>
         <button class="fr-btn fr-btn--sm fr-btn--secondary" id="btn-apercu">
           <i class="ri-eye-line"></i>&nbsp;Aperçu
         </button>
@@ -444,7 +509,7 @@
     <div id="alerte"></div>
 
     <div class="corps">
-      <aside class="panneau">
+      <aside class="panneau panneau-gauche">
         <h2>Champs</h2>
         <input
           id="filtre-champs"
@@ -575,6 +640,100 @@
           <iframe id="apercu" title="Aperçu avec les données" hidden></iframe>
         </div>
       </section>
+
+      <aside class="panneau panneau-droit" id="panneau-mep" hidden>
+        <h2>Mise en page</h2>
+
+        <h3>Papier</h3>
+        <div class="ligne2">
+          <label class="champ"
+            ><span>Format</span>
+            <select id="mep-format">
+              <option value="a4">A4</option>
+              <option value="a5">A5</option>
+              <option value="letter">Letter</option>
+            </select></label
+          >
+          <label class="champ"
+            ><span>Orientation</span>
+            <select id="mep-orientation">
+              <option value="portrait">Portrait</option>
+              <option value="paysage">Paysage</option>
+            </select></label
+          >
+        </div>
+        <label class="champ"
+          ><span>Taille du texte (pt)</span>
+          <input id="mep-police" type="number" min="7" max="16" step="0.5"
+        /></label>
+
+        <h3>Marges (mm)</h3>
+        <div class="ligne2">
+          <label class="champ"
+            ><span>Haut</span
+            ><input id="mep-haut" type="number" min="0" max="60"
+          /></label>
+          <label class="champ"
+            ><span>Bas</span><input id="mep-bas" type="number" min="0" max="60"
+          /></label>
+          <label class="champ"
+            ><span>Gauche</span
+            ><input id="mep-gauche" type="number" min="0" max="60"
+          /></label>
+          <label class="champ"
+            ><span>Droite</span
+            ><input id="mep-droite" type="number" min="0" max="60"
+          /></label>
+        </div>
+
+        <h3>En-tête</h3>
+        <div class="ligne3">
+          <label class="champ"
+            ><span>Gauche</span><input id="mep-eg" type="text"
+          /></label>
+          <label class="champ"
+            ><span>Centre</span><input id="mep-ec" type="text"
+          /></label>
+          <label class="champ"
+            ><span>Droite</span><input id="mep-ed" type="text"
+          /></label>
+        </div>
+
+        <h3>Pied de page</h3>
+        <div class="ligne3">
+          <label class="champ"
+            ><span>Gauche</span><input id="mep-pg" type="text"
+          /></label>
+          <label class="champ"
+            ><span>Centre</span><input id="mep-pc" type="text"
+          /></label>
+          <label class="champ"
+            ><span>Droite</span><input id="mep-pd" type="text"
+          /></label>
+        </div>
+        <label class="bascule"
+          ><input id="mep-sans-premiere" type="checkbox" />Masquer sur la
+          première page</label
+        >
+        <p class="aide">
+          Codes disponibles : {page}, {pages}, {date}, {modele}. Les champs
+          Grist ne sont pas disponibles ici, car l'en-tête est identique sur
+          toutes les pages.
+        </p>
+
+        <h3>Nom de fichier</h3>
+        <input id="mep-nom-fichier" type="text" placeholder="{modele}-{Nom}" />
+        <div id="apercu-nom"></div>
+        <p class="aide">
+          Entre accolades : un identifiant de colonne, ou {date} et {modele}. Le
+          navigateur ne peut pas nommer le PDF tout seul : le nom est copié dans
+          le presse-papiers à l'impression, il suffit de le coller.
+        </p>
+
+        <button class="fr-btn fr-btn--sm fr-btn--tertiary" id="mep-defaut">
+          <i class="ri-arrow-go-back-line"></i>&nbsp;Valeurs par défaut
+        </button>
+      </aside>
     </div>
 
     <div id="pop-lien" class="pop pop-lien" hidden>
@@ -597,7 +756,7 @@
       // ════════════════════════════════════════════════════════════════
       // Configuration
       // ════════════════════════════════════════════════════════════════
-      const VERSION = "p2.3";
+      const VERSION = "p3.0";
       const TABLE_MODELES = "Modeles_PDF";
       const COLS_MODELE = {
         nom: "Nom",
@@ -607,9 +766,9 @@
         images: "Images",
         mode: "Mode",
         nomFichier: "Nom_fichier",
+        miseEnPage: "Mise_en_page",
       };
       const DELAI_SAUVEGARDE = 1500;
-      const PIED_GAUCHE = "DRAAF-SRFD Occitanie";
       const TIPTAP_VERSION = "3.31.3";
       const TIPTAP_URLS = {
         core: `https://esm.sh/@tiptap/core@${TIPTAP_VERSION}`,
@@ -637,6 +796,20 @@
         Ref: "ri-links-line",
         RefList: "ri-links-line",
       };
+      const FORMATS = {
+        a4: { l: 210, h: 297, css: "A4" },
+        a5: { l: 148, h: 210, css: "A5" },
+        letter: { l: 216, h: 279, css: "letter" },
+      };
+      const MEP_DEFAUT = {
+        format: "a4",
+        orientation: "portrait",
+        police: 11,
+        marges: { haut: 20, bas: 22, gauche: 20, droite: 20 },
+        enTete: { g: "", c: "", d: "" },
+        pied: { g: "DRAAF-SRFD Occitanie", c: "", d: "Page {page}/{pages}" },
+        sansPremiere: false,
+      };
       const CONTENU_VIDE = {
         type: "doc",
         content: [
@@ -662,13 +835,15 @@
       // ════════════════════════════════════════════════════════════════
       const $ = (id) => document.getElementById(id);
       let editor = null;
-      let TABLES = []; // { ref, tableId }
-      let META_COLS = []; // colonnes de tout le document
-      let COLONNES = []; // colonnes de la table source
-      let COLS = new Map(); // ref → colonne
-      let MODELES = []; // lignes de Modeles_PDF
-      let GALERIE = []; // { id, nom }
+      let TABLES = [];
+      let META_COLS = [];
+      let COLONNES = [];
+      let COLS = new Map();
+      let MODELES = [];
+      let GALERIE = [];
       let modele = null;
+      let mep = structuredClone(MEP_DEFAUT);
+      let modeleNomFichier = "";
       let tableCourante = null;
       let tableLiee = null;
       let modeLie = false;
@@ -677,9 +852,9 @@
       let index = 0;
       let pret = false;
       let enApercu = false;
-      let chargement = false; // suspend la sauvegarde pendant un chargement
+      let chargement = false;
       let minuteur = null;
-      let dernierJson = null;
+      let dernierEtat = null;
       let ecritureEnCours = false;
 
       // ════════════════════════════════════════════════════════════════
@@ -697,6 +872,10 @@
               "'": "&#39;",
             })[c],
         );
+      const escCss = (s) =>
+        String(s ?? "")
+          .replace(/\\/g, "\\\\")
+          .replace(/"/g, '\\"');
       const norm = (s) =>
         String(s ?? "")
           .normalize("NFD")
@@ -709,6 +888,10 @@
         Array.isArray(v)
           ? (v[0] === "L" ? v.slice(1) : v).filter(Number.isInteger)
           : [];
+      const borner = (v, min, max, def) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+      };
 
       function statut(msg) {
         $("statut").textContent = msg || "";
@@ -953,6 +1136,179 @@
       }
 
       // ════════════════════════════════════════════════════════════════
+      // Mise en page
+      // ════════════════════════════════════════════════════════════════
+      function dimensions() {
+        const f = FORMATS[mep.format] || FORMATS.a4;
+        return mep.orientation === "paysage"
+          ? { l: f.h, h: f.l, css: `${f.css} landscape` }
+          : { l: f.l, h: f.h, css: `${f.css} portrait` };
+      }
+      function normaliserMep(brut) {
+        const m = structuredClone(MEP_DEFAUT);
+        if (!brut || typeof brut !== "object") return m;
+        if (FORMATS[brut.format]) m.format = brut.format;
+        if (brut.orientation === "paysage") m.orientation = "paysage";
+        m.police = borner(brut.police, 7, 16, MEP_DEFAUT.police);
+        for (const k of ["haut", "bas", "gauche", "droite"])
+          m.marges[k] = borner(brut.marges?.[k], 0, 60, MEP_DEFAUT.marges[k]);
+        for (const k of ["g", "c", "d"]) {
+          m.enTete[k] = String(brut.enTete?.[k] ?? "").slice(0, 120);
+          m.pied[k] = String(brut.pied?.[k] ?? MEP_DEFAUT.pied[k]).slice(
+            0,
+            120,
+          );
+        }
+        m.sansPremiere = !!brut.sansPremiere;
+        return m;
+      }
+      function remplirFormulaireMep() {
+        $("mep-format").value = mep.format;
+        $("mep-orientation").value = mep.orientation;
+        $("mep-police").value = mep.police;
+        for (const k of ["haut", "bas", "gauche", "droite"])
+          $(`mep-${k}`).value = mep.marges[k];
+        $("mep-eg").value = mep.enTete.g;
+        $("mep-ec").value = mep.enTete.c;
+        $("mep-ed").value = mep.enTete.d;
+        $("mep-pg").value = mep.pied.g;
+        $("mep-pc").value = mep.pied.c;
+        $("mep-pd").value = mep.pied.d;
+        $("mep-sans-premiere").checked = mep.sansPremiere;
+        $("mep-nom-fichier").value = modeleNomFichier;
+        majApercuNom();
+      }
+      function lireFormulaireMep() {
+        mep = normaliserMep({
+          format: $("mep-format").value,
+          orientation: $("mep-orientation").value,
+          police: $("mep-police").value,
+          marges: {
+            haut: $("mep-haut").value,
+            bas: $("mep-bas").value,
+            gauche: $("mep-gauche").value,
+            droite: $("mep-droite").value,
+          },
+          enTete: {
+            g: $("mep-eg").value,
+            c: $("mep-ec").value,
+            d: $("mep-ed").value,
+          },
+          pied: {
+            g: $("mep-pg").value,
+            c: $("mep-pc").value,
+            d: $("mep-pd").value,
+          },
+          sansPremiere: $("mep-sans-premiere").checked,
+        });
+        modeleNomFichier = $("mep-nom-fichier").value.slice(0, 200);
+        appliquerMepEcran();
+        majApercuNom();
+        marquerModifie();
+        if (enApercu) rafraichirApercu();
+      }
+      function appliquerMepEcran() {
+        const d = dimensions();
+        const f = $("feuille");
+        f.style.width = `${d.l}mm`;
+        f.style.minHeight = `${d.h}mm`;
+        f.style.padding = `${mep.marges.haut}mm ${mep.marges.droite}mm ${mep.marges.bas}mm ${mep.marges.gauche}mm`;
+        f.style.fontSize = `${mep.police}pt`;
+        const util = d.h - mep.marges.haut - mep.marges.bas;
+        f.querySelector(".ProseMirror")?.style.setProperty(
+          "min-height",
+          `${Math.max(util, 20)}mm`,
+        );
+        $("apercu").style.width = `${d.l}mm`;
+        $("apercu").style.minHeight = `${d.h}mm`;
+      }
+      // Codes disponibles dans l'en-tête et le pied de page
+      function contenuCss(gabarit) {
+        if (!gabarit) return "none";
+        const parts = [];
+        const regex = /\{(page|pages)\}/g;
+        let dernier = 0,
+          m;
+        const texte = gabarit
+          .replace(/\{date\}/g, new Date().toLocaleDateString("fr-FR"))
+          .replace(/\{modele\}/g, modele?.[COLS_MODELE.nom] || "");
+        while ((m = regex.exec(texte))) {
+          if (m.index > dernier)
+            parts.push(`"${escCss(texte.slice(dernier, m.index))}"`);
+          parts.push(m[1] === "page" ? "counter(page)" : "counter(pages)");
+          dernier = m.index + m[0].length;
+        }
+        if (dernier < texte.length)
+          parts.push(`"${escCss(texte.slice(dernier))}"`);
+        return parts.length ? parts.join(" ") : "none";
+      }
+      function boitesMarge(prefixe, zones) {
+        const pos = { g: "left", c: "center", d: "right" };
+        return Object.entries(zones)
+          .filter(([, v]) => v)
+          .map(
+            ([k, v]) =>
+              `@${prefixe}-${pos[k]} { content: ${contenuCss(v)}; font: 8pt "Marianne", arial, sans-serif; color: #666; }`,
+          )
+          .join("\n    ");
+      }
+      function nomFichierCalcule(rec) {
+        const gabarit = modeleNomFichier.trim() || "{modele}";
+        const brutNom = gabarit.replace(/\{([^}]+)\}/g, (_, cle) => {
+          const k = cle.trim();
+          if (k === "date") return new Date().toLocaleDateString("fr-CA");
+          if (k === "modele") return modele?.[COLS_MODELE.nom] || "";
+          const col =
+            COLONNES.find((c) => c.colId === k) ||
+            COLONNES.find((c) => norm(c.label) === norm(k));
+          return col && rec ? formater(brute(rec, col), col) : "";
+        });
+        const nom = brutNom
+          .replace(/[\/\\:*?"<>|]/g, "_")
+          .replace(/\s+/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "")
+          .slice(0, 120);
+        return `${nom || "document"}.pdf`;
+      }
+      function majApercuNom() {
+        $("apercu-nom").textContent = enregistrements[index]
+          ? nomFichierCalcule(enregistrements[index])
+          : "—";
+      }
+      [
+        "mep-format",
+        "mep-orientation",
+        "mep-police",
+        "mep-haut",
+        "mep-bas",
+        "mep-gauche",
+        "mep-droite",
+        "mep-eg",
+        "mep-ec",
+        "mep-ed",
+        "mep-pg",
+        "mep-pc",
+        "mep-pd",
+        "mep-sans-premiere",
+        "mep-nom-fichier",
+      ].forEach((id) => $(id).addEventListener("change", lireFormulaireMep));
+      $("mep-nom-fichier").addEventListener("input", () => {
+        modeleNomFichier = $("mep-nom-fichier").value;
+        majApercuNom();
+      });
+      $("btn-mise-en-page").addEventListener("click", () => {
+        const p = $("panneau-mep");
+        p.hidden = !p.hidden;
+        $("btn-mise-en-page").classList.toggle("actif", !p.hidden);
+      });
+      $("mep-defaut").addEventListener("click", () => {
+        mep = structuredClone(MEP_DEFAUT);
+        remplirFormulaireMep();
+        lireFormulaireMep();
+      });
+
+      // ════════════════════════════════════════════════════════════════
       // Modèles : lecture et écriture dans Modeles_PDF
       // ════════════════════════════════════════════════════════════════
       async function chargerModeles() {
@@ -995,7 +1351,6 @@
         });
         return ids;
       }
-      // Les blob URL sont éphémères : seule la référence data-att est conservée
       function nettoyerBlobs(n) {
         if (Array.isArray(n)) return n.map(nettoyerBlobs);
         if (!n || typeof n !== "object") return n;
@@ -1005,14 +1360,12 @@
         if (c.content) c.content = nettoyerBlobs(c.content);
         return c;
       }
-
       function marquerModifie() {
         if (chargement) return;
         etatSauvegarde("modifie");
         clearTimeout(minuteur);
         minuteur = setTimeout(() => sauvegarder(), DELAI_SAUVEGARDE);
       }
-
       function champsCourants() {
         const conservees = new Set([
           ...listeIds(modele?.[COLS_MODELE.images]),
@@ -1022,11 +1375,20 @@
           [COLS_MODELE.contenu]: JSON.stringify(
             nettoyerBlobs(editor.getJSON()),
           ),
+          [COLS_MODELE.miseEnPage]: JSON.stringify(mep),
+          [COLS_MODELE.nomFichier]: modeleNomFichier,
           [COLS_MODELE.images]: ["L", ...conservees],
           [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
           [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
         };
       }
+      const empreinte = (champs) =>
+        JSON.stringify([
+          champs[COLS_MODELE.contenu],
+          champs[COLS_MODELE.miseEnPage],
+          champs[COLS_MODELE.nomFichier],
+          champs[COLS_MODELE.tableRef],
+        ]);
       async function creerModele(nom, champs) {
         const c = {
           [COLS_MODELE.nom]: nom,
@@ -1041,15 +1403,14 @@
         trierModeles();
         return m;
       }
-
       // N'écrit QUE dans un modèle déjà ouvert : aucune création implicite.
       async function sauvegarder(force = false) {
         clearTimeout(minuteur);
         if (!editor || !modele || !pret || chargement || ecritureEnCours)
           return;
         const champs = champsCourants();
-        const json = champs[COLS_MODELE.contenu];
-        if (!force && json === dernierJson) return;
+        const etat = empreinte(champs);
+        if (!force && etat === dernierEtat) return;
         ecritureEnCours = true;
         etatSauvegarde("encours");
         try {
@@ -1057,7 +1418,7 @@
             ["UpdateRecord", TABLE_MODELES, modele.id, champs],
           ]);
           Object.assign(modele, champs);
-          dernierJson = json;
+          dernierEtat = etat;
           etatSauvegarde("enregistre");
         } catch (e) {
           console.error(e);
@@ -1086,12 +1447,22 @@
               );
             }
           }
+          let brutMep = null;
+          try {
+            brutMep = modele?.[COLS_MODELE.miseEnPage]
+              ? JSON.parse(modele[COLS_MODELE.miseEnPage])
+              : null;
+          } catch {}
+          mep = normaliserMep(brutMep);
+          modeleNomFichier = String(modele?.[COLS_MODELE.nomFichier] || "");
           editor.commands.setContent(contenu, { emitUpdate: false });
-          dernierJson = JSON.stringify(nettoyerBlobs(editor.getJSON()));
+          remplirFormulaireMep();
+          appliquerMepEcran();
           const ref = modele?.[COLS_MODELE.tableRef];
           await choisirTable(
             TABLES.some((t) => t.ref === ref) ? ref : tableParDefaut(),
           );
+          dernierEtat = empreinte(champsCourants());
         } finally {
           chargement = false;
         }
@@ -1149,6 +1520,7 @@
         try {
           const m = await creerModele(nom.trim() || "Nouveau modèle", {
             [COLS_MODELE.contenu]: JSON.stringify(CONTENU_VIDE),
+            [COLS_MODELE.miseEnPage]: JSON.stringify(MEP_DEFAUT),
             [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
             [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
           });
@@ -1191,6 +1563,7 @@
           modele[COLS_MODELE.nom] = nom.trim();
           trierModeles();
           afficherModeles();
+          majApercuNom();
         } catch (e) {
           alerte(`Renommage impossible : ${e.message}`);
         }
@@ -1715,6 +2088,7 @@
         $("btn-imprimer-tout").disabled = !n;
         $("btn-imprimer-tout").innerHTML =
           `<i class="ri-stack-line"></i>&nbsp;Tout imprimer (${n})`;
+        majApercuNom();
         if (enApercu) rafraichirApercu();
       }
       function allerA(i) {
@@ -1744,10 +2118,10 @@
       // ════════════════════════════════════════════════════════════════
       function cssContenu(s) {
         return `
-  ${s} { font-family: "Marianne", arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #161616; }
-  ${s} h1 { font-size: 20pt; line-height: 1.25; font-weight: 700; margin: 0 0 4mm; color: #161616; }
-  ${s} h2 { font-size: 15pt; line-height: 1.3; font-weight: 700; margin: 5mm 0 3mm; color: #161616; }
-  ${s} h3 { font-size: 12.5pt; line-height: 1.35; font-weight: 700; margin: 4mm 0 2mm; color: #161616; }
+  ${s} { font-family: "Marianne", arial, sans-serif; line-height: 1.5; color: #161616; }
+  ${s} h1 { font-size: 1.8em; line-height: 1.25; font-weight: 700; margin: 0 0 4mm; color: #161616; }
+  ${s} h2 { font-size: 1.35em; line-height: 1.3; font-weight: 700; margin: 5mm 0 3mm; color: #161616; }
+  ${s} h3 { font-size: 1.15em; line-height: 1.35; font-weight: 700; margin: 4mm 0 2mm; color: #161616; }
   ${s} p { margin: 0 0 3mm; font-size: inherit; line-height: inherit; }
   ${s} p:empty { min-height: 1.5em; }
   ${s} ul, ${s} ol { margin: 0 0 3mm; padding-left: 6mm; }
@@ -1768,28 +2142,12 @@
         `<style>${cssContenu(".feuille .ProseMirror")}</style>`,
       );
 
-      const CSS_IMPRESSION = `
+      const POLICES_WOFF = `
   @font-face { font-family: "Marianne"; font-weight: 400; src: url("${FONTS_URL}Marianne-Regular.woff2") format("woff2"); }
   @font-face { font-family: "Marianne"; font-weight: 400; font-style: italic; src: url("${FONTS_URL}Marianne-Regular_Italic.woff2") format("woff2"); }
   @font-face { font-family: "Marianne"; font-weight: 500; src: url("${FONTS_URL}Marianne-Medium.woff2") format("woff2"); }
   @font-face { font-family: "Marianne"; font-weight: 700; src: url("${FONTS_URL}Marianne-Bold.woff2") format("woff2"); }
-  @font-face { font-family: "Marianne"; font-weight: 700; font-style: italic; src: url("${FONTS_URL}Marianne-Bold_Italic.woff2") format("woff2"); }
-  @page {
-    size: A4; margin: 20mm 20mm 22mm;
-    @bottom-left  { content: "${PIED_GAUCHE}"; font: 8pt "Marianne", arial, sans-serif; color: #666; }
-    @bottom-right { content: "Page " counter(page) "/" counter(pages); font: 8pt "Marianne", arial, sans-serif; color: #666; }
-  }
-  html, body { margin: 0; }
-  @media screen { body { padding: 20mm; } }
-  ${cssContenu("body")}
-  th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  thead { display: table-header-group; }
-  tr, img { break-inside: avoid; }
-  h1, h2, h3 { break-after: avoid; }
-  .saut-page { break-before: page; height: 0; margin: 0; border: 0; }
-  .fiche + .fiche { break-before: page; }
-  .valeur { white-space: pre-line; }
-`;
+  @font-face { font-family: "Marianne"; font-weight: 700; font-style: italic; src: url("${FONTS_URL}Marianne-Bold_Italic.woff2") format("woff2"); }`;
       const POLICES = [
         "400 16px Marianne",
         "italic 400 16px Marianne",
@@ -1797,9 +2155,33 @@
         "italic 700 16px Marianne",
       ];
 
+      function cssImpression() {
+        const d = dimensions();
+        const m = mep.marges;
+        const boites = `${boitesMarge("top", mep.enTete)}\n    ${boitesMarge("bottom", mep.pied)}`;
+        const vides = `@top-left{content:none}@top-center{content:none}@top-right{content:none}
+                 @bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:none}`;
+        return `${POLICES_WOFF}
+  @page {
+    size: ${d.css}; margin: ${m.haut}mm ${m.droite}mm ${m.bas}mm ${m.gauche}mm;
+    ${boites}
+  }
+  ${mep.sansPremiere ? `@page :first { ${vides} }` : ""}
+  html, body { margin: 0; }
+  body { font-size: ${mep.police}pt; }
+  @media screen { body { width: ${d.l}mm; padding: ${m.haut}mm ${m.droite}mm ${m.bas}mm ${m.gauche}mm; box-sizing: border-box; } }
+  ${cssContenu("body")}
+  th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  thead { display: table-header-group; }
+  tr, img { break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+  .saut-page { break-before: page; height: 0; margin: 0; border: 0; }
+  .fiche + .fiche { break-before: page; }
+  .valeur { white-space: pre-line; }`;
+      }
       function documentImpression(corps) {
         return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>${esc(modele?.[COLS_MODELE.nom] || "Document")}</title>
-    <style>${CSS_IMPRESSION}</style></head><body>${corps}</body></html>`;
+    <style>${cssImpression()}</style></head><body>${corps}</body></html>`;
       }
       async function attendreRessources(doc) {
         await Promise.all(
@@ -1839,6 +2221,14 @@
         });
         return tmp.innerHTML;
       }
+      async function copierNom(nom) {
+        try {
+          await navigator.clipboard.writeText(nom.replace(/\.pdf$/, ""));
+          return true;
+        } catch {
+          return false;
+        }
+      }
       async function imprimer(recs) {
         statut("Préparation de l'impression…");
         try {
@@ -1858,9 +2248,15 @@
           document.body.appendChild(frame);
           await charge;
           await attendreRessources(frame.contentDocument);
-          statut("");
+          const nom =
+            recs.length === 1
+              ? nomFichierCalcule(recs[0])
+              : `${(modele?.[COLS_MODELE.nom] || "documents").replace(/\s+/g, "_")}.pdf`;
+          const copie = await copierNom(nom);
+          statut(copie ? `Nom copié : ${nom}` : "");
           frame.contentWindow.focus();
           frame.contentWindow.print();
+          setTimeout(() => statut(""), 8000);
         } catch (e) {
           console.error(e);
           statut("");
@@ -1938,16 +2334,6 @@
           : `<option value="">Aucune table</option>`;
       }
 
-      // Journalise toute écriture, avec la pile d'appel pour les créations
-      const _apply = grist.docApi.applyUserActions.bind(grist.docApi);
-      grist.docApi.applyUserActions = (actions, ...reste) => {
-        for (const a of actions) {
-          if (a[0] === "AddRecord" && a[1] === TABLE_MODELES)
-            console.trace("[publipostage] création d'une ligne Modeles_PDF");
-          else console.log("[publipostage]", a[0], a[1], a[2]);
-        }
-        return _apply(actions, ...reste);
-      };
       console.log(`[publipostage] version ${VERSION} chargée`);
       $("etat-sauvegarde").title = `Version ${VERSION}`;
 
