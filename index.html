@@ -29,15 +29,20 @@
         display: none !important;
       }
 
-      /* ── Barre du haut ── */
+      /* ── Barres du haut ── */
       .barre {
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.75rem;
         padding: 0.5rem 1rem;
         background: #fff;
-        border-bottom: 1px solid #ddd;
         flex-wrap: wrap;
+      }
+      .barre + .barre {
+        border-top: 1px solid #eee;
+      }
+      .barre:last-of-type {
+        border-bottom: 1px solid #ddd;
       }
       .barre label {
         font-size: 0.8rem;
@@ -55,7 +60,7 @@
         font-size: 0.85rem;
         background: #fff;
         color: #161616;
-        max-width: 240px;
+        max-width: 260px;
       }
       .nav {
         display: flex;
@@ -77,9 +82,14 @@
         gap: 0.5rem;
         align-items: center;
       }
-      #statut {
+      #statut,
+      #etat-sauvegarde {
         font-size: 0.8rem;
-        color: #3a3a3a;
+        color: #666;
+      }
+      #etat-sauvegarde i {
+        font-size: 0.9em;
+        margin-right: 0.2rem;
       }
 
       /* ── Corps ── */
@@ -245,30 +255,18 @@
       .feuille [data-resize-container]:not(:hover) [data-resize-handle] {
         opacity: 0;
       }
-
-      /* ── Balises dans l'éditeur ── */
       .feuille .ProseMirror a {
         cursor: pointer;
       }
-      .pop-lien {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-      }
-      .pop-lien input {
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        padding: 5px 8px;
-        font: inherit;
-        font-size: 0.85rem;
-        width: 280px;
-      }
+
+      /* ── Balises ── */
       .balise {
         display: inline-block;
         background: #e3e3fd;
         color: #000091;
         border-radius: 1rem;
         padding: 0 0.55rem;
+        font-size: 0.85em;
         line-height: 1.5;
         font-weight: 500;
         cursor: grab;
@@ -307,6 +305,19 @@
       }
       .pop-emoji button:hover {
         background: #eee !important;
+      }
+      .pop-lien {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      .pop-lien input {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 5px 8px;
+        font: inherit;
+        font-size: 0.85rem;
+        width: 280px;
       }
       .galerie {
         display: flex;
@@ -369,6 +380,26 @@
   <body>
     <header class="barre">
       <label
+        >Modèle
+        <select id="sel-modele" class="sel"></select
+      ></label>
+      <button class="tb" id="btn-nouveau" title="Nouveau modèle">
+        <i class="ri-add-line"></i>
+      </button>
+      <button class="tb" id="btn-dupliquer" title="Dupliquer le modèle">
+        <i class="ri-file-copy-line"></i>
+      </button>
+      <button class="tb" id="btn-renommer" title="Renommer le modèle">
+        <i class="ri-edit-line"></i>
+      </button>
+      <button class="tb" id="btn-supprimer" title="Supprimer le modèle">
+        <i class="ri-delete-bin-line"></i>
+      </button>
+      <span id="etat-sauvegarde"></span>
+    </header>
+
+    <header class="barre">
+      <label
         >Table source
         <select id="sel-table" class="sel"></select
       ></label>
@@ -392,7 +423,7 @@
         <button
           class="tb"
           id="btn-actualiser"
-          title="Recharger tables, colonnes, données et images"
+          title="Recharger modèles, tables, données et images"
         >
           <i class="ri-refresh-line"></i>
         </button>
@@ -567,7 +598,16 @@
       // Configuration
       // ════════════════════════════════════════════════════════════════
       const TABLE_MODELES = "Modeles_PDF";
-      const COL_IMAGES = "Images";
+      const COLS_MODELE = {
+        nom: "Nom",
+        contenu: "Contenu",
+        tableRef: "Table_cible",
+        tableNom: "Table_cible_nom",
+        images: "Images",
+        mode: "Mode",
+        nomFichier: "Nom_fichier",
+      };
+      const DELAI_SAUVEGARDE = 1500;
       const PIED_GAUCHE = "DRAAF-SRFD Occitanie";
       const TIPTAP_VERSION = "3.31.3";
       const TIPTAP_URLS = {
@@ -596,6 +636,25 @@
         Ref: "ri-links-line",
         RefList: "ri-links-line",
       };
+      const CONTENU_VIDE = {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 1 },
+            content: [{ type: "text", text: "Titre du document" }],
+          },
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "Tapez @ pour insérer un champ, ou cliquez sur un champ dans la colonne de gauche.",
+              },
+            ],
+          },
+        ],
+      };
 
       // ════════════════════════════════════════════════════════════════
       // État
@@ -603,21 +662,23 @@
       const $ = (id) => document.getElementById(id);
       let editor = null;
       let TABLES = []; // { ref, tableId }
-      let META_COLS = []; // toutes les colonnes du document
-      let COLONNES = []; // colonnes de la table source, triées
-      let COLS = new Map(); // ref colonne → colonne
+      let META_COLS = []; // colonnes de tout le document
+      let COLONNES = []; // colonnes de la table source
+      let COLS = new Map(); // ref → colonne
+      let MODELES = []; // lignes de Modeles_PDF
       let GALERIE = []; // { id, nom }
+      let modele = null;
       let tableCourante = null;
-      let tableLiee = null; // tableId de la table liée au widget
+      let tableLiee = null;
       let modeLie = false;
       let recsLies = [];
       let enregistrements = [];
       let index = 0;
       let pret = false;
       let enApercu = false;
-      let contenuSauve = null;
-      let minuteurSauvegarde = null;
-      let dernierJsonSauve = null;
+      let chargement = false; // suspend la sauvegarde pendant un chargement
+      let minuteur = null;
+      let dernierJson = null;
 
       // ════════════════════════════════════════════════════════════════
       // Utilitaires
@@ -642,6 +703,10 @@
       const attendre = (ms, v) =>
         new Promise((r) => setTimeout(() => r(v), ms));
       const typeBase = (type) => String(type || "Any").split(":")[0];
+      const listeIds = (v) =>
+        Array.isArray(v)
+          ? (v[0] === "L" ? v.slice(1) : v).filter(Number.isInteger)
+          : [];
 
       function statut(msg) {
         $("statut").textContent = msg || "";
@@ -651,6 +716,18 @@
           ? `<div class="fr-alert fr-alert--${niveau} fr-alert--sm"><p>${esc(msg)}</p></div>`
           : "";
       }
+      function etatSauvegarde(cle) {
+        const t = {
+          enregistre: `<i class="ri-check-line"></i>Enregistré`,
+          encours: `<i class="ri-loader-4-line"></i>Enregistrement…`,
+          modifie: `<i class="ri-pencil-line"></i>Modifié`,
+          erreur: `<i class="ri-error-warning-line"></i>Non enregistré`,
+          "": "",
+        };
+        $("etat-sauvegarde").innerHTML = t[cle] ?? "";
+        $("etat-sauvegarde").style.color =
+          cle === "erreur" ? "#CE0500" : "#666";
+      }
       function colonnesEnLignes(t) {
         return t.id.map((id, i) => {
           const r = { id };
@@ -658,6 +735,20 @@
           return r;
         });
       }
+      const memoire = {
+        lire: (k) => {
+          try {
+            return localStorage.getItem(`publipostage:${k}`);
+          } catch {
+            return null;
+          }
+        },
+        ecrire: (k, v) => {
+          try {
+            localStorage.setItem(`publipostage:${k}`, v);
+          } catch {}
+        },
+      };
 
       // ════════════════════════════════════════════════════════════════
       // Pièces jointes Grist → blob URL
@@ -698,16 +789,11 @@
       async function chargerGalerie() {
         GALERIE = [];
         try {
-          const [m, a] = await Promise.all([
-            grist.docApi.fetchTable(TABLE_MODELES),
-            grist.docApi.fetchTable("_grist_Attachments"),
-          ]);
+          const a = await grist.docApi.fetchTable("_grist_Attachments");
           const noms = new Map(a.id.map((id, i) => [id, a.fileName[i]]));
           const ids = new Set();
-          (m[COL_IMAGES] || []).forEach(
-            (v) =>
-              Array.isArray(v) &&
-              (v[0] === "L" ? v.slice(1) : v).forEach((id) => ids.add(id)),
+          MODELES.forEach((m) =>
+            listeIds(m[COLS_MODELE.images]).forEach((id) => ids.add(id)),
           );
           GALERIE = [...ids].map((id) => ({
             id,
@@ -748,6 +834,22 @@
           type: c.type[i],
           displayCol: c.displayCol[i],
         }));
+
+        const refModeles = t.id.find((_, i) => t.tableId[i] === TABLE_MODELES);
+        if (!refModeles)
+          throw new Error(
+            `La table ${TABLE_MODELES} est introuvable dans ce document.`,
+          );
+        const presentes = new Set(
+          META_COLS.filter((c) => c.parent === refModeles).map((c) => c.colId),
+        );
+        const manquantes = Object.values(COLS_MODELE).filter(
+          (c) => !presentes.has(c),
+        );
+        if (manquantes.length)
+          throw new Error(
+            `Colonnes manquantes dans ${TABLE_MODELES} : ${manquantes.join(", ")}`,
+          );
       }
       function colonnesDe(tableRef) {
         const parRef = new Map(META_COLS.map((c) => [c.ref, c]));
@@ -770,7 +872,6 @@
       // ════════════════════════════════════════════════════════════════
       function brute(rec, col) {
         if (!rec) return null;
-        // Mode non lié (fetchTable) : les références passent par la colonne d'affichage
         if (col.displayColId && col.displayColId in rec)
           return rec[col.displayColId];
         return rec[col.colId];
@@ -848,6 +949,266 @@
         const txt = col ? formater(brute(rec, col), col) : "";
         return `${i + 1}. ${txt || `Ligne ${rec.id}`}`.slice(0, 80);
       }
+
+      // ════════════════════════════════════════════════════════════════
+      // Modèles : lecture et écriture dans Modeles_PDF
+      // ════════════════════════════════════════════════════════════════
+      async function chargerModeles() {
+        MODELES = colonnesEnLignes(
+          await grist.docApi.fetchTable(TABLE_MODELES),
+        );
+        trierModeles();
+      }
+      function trierModeles() {
+        MODELES.sort((a, b) =>
+          String(a[COLS_MODELE.nom] || "").localeCompare(
+            String(b[COLS_MODELE.nom] || ""),
+            "fr",
+          ),
+        );
+      }
+      function nomTable(ref) {
+        return TABLES.find((t) => t.ref === ref)?.tableId || "";
+      }
+      function afficherModeles() {
+        $("sel-modele").innerHTML = MODELES.length
+          ? MODELES.map((m) => {
+              const t =
+                nomTable(m[COLS_MODELE.tableRef]) ||
+                m[COLS_MODELE.tableNom] ||
+                "";
+              return `<option value="${m.id}">${esc(m[COLS_MODELE.nom] || "Sans nom")}${t ? ` — ${esc(t)}` : ""}</option>`;
+            }).join("")
+          : `<option value="">Aucun modèle</option>`;
+        $("sel-modele").value = modele ? String(modele.id) : "";
+        ["btn-dupliquer", "btn-renommer", "btn-supprimer"].forEach(
+          (b) => ($(b).disabled = !modele),
+        );
+      }
+
+      function imagesUtilisees() {
+        const ids = new Set();
+        editor?.state.doc.descendants((n) => {
+          if (n.type.name === "image" && n.attrs.att) ids.add(n.attrs.att);
+        });
+        return ids;
+      }
+      // Les blob URL sont éphémères : seule la référence data-att est conservée
+      function nettoyerBlobs(n) {
+        if (Array.isArray(n)) return n.map(nettoyerBlobs);
+        if (!n || typeof n !== "object") return n;
+        const c = { ...n };
+        if (c.type === "image" && c.attrs?.att)
+          c.attrs = { ...c.attrs, src: null };
+        if (c.content) c.content = nettoyerBlobs(c.content);
+        return c;
+      }
+
+      function marquerModifie() {
+        if (chargement) return;
+        etatSauvegarde("modifie");
+        clearTimeout(minuteur);
+        minuteur = setTimeout(() => sauvegarder(), DELAI_SAUVEGARDE);
+      }
+
+      async function sauvegarder(force = false) {
+        clearTimeout(minuteur);
+        if (!editor || chargement) return;
+        const json = JSON.stringify(nettoyerBlobs(editor.getJSON()));
+        if (modele && !force && json === dernierJson) return;
+        const conservees = new Set([
+          ...listeIds(modele?.[COLS_MODELE.images]),
+          ...imagesUtilisees(),
+        ]);
+        const champs = {
+          [COLS_MODELE.contenu]: json,
+          [COLS_MODELE.images]: ["L", ...conservees],
+          [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
+          [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
+        };
+        etatSauvegarde("encours");
+        try {
+          if (modele) {
+            await grist.docApi.applyUserActions([
+              ["UpdateRecord", TABLE_MODELES, modele.id, champs],
+            ]);
+            Object.assign(modele, champs);
+          } else {
+            champs[COLS_MODELE.nom] = "Nouveau modèle";
+            champs[COLS_MODELE.mode] = "Fiche";
+            const r = await grist.docApi.applyUserActions([
+              ["AddRecord", TABLE_MODELES, null, champs],
+            ]);
+            modele = { id: r.retValues[0], ...champs };
+            MODELES.push(modele);
+            trierModeles();
+            afficherModeles();
+            memoire.ecrire("modele", String(modele.id));
+          }
+          dernierJson = json;
+          etatSauvegarde("enregistre");
+        } catch (e) {
+          console.error(e);
+          etatSauvegarde("erreur");
+          alerte(`Enregistrement impossible : ${e.message}`);
+        }
+      }
+      addEventListener("pagehide", () => sauvegarder());
+      addEventListener("blur", () => sauvegarder());
+
+      async function ouvrirModele(id) {
+        await sauvegarder();
+        modele = MODELES.find((m) => m.id === id) || null;
+        chargement = true;
+        try {
+          let contenu = CONTENU_VIDE;
+          if (modele?.[COLS_MODELE.contenu]) {
+            try {
+              contenu = JSON.parse(modele[COLS_MODELE.contenu]);
+            } catch {
+              alerte(
+                "Le contenu de ce modèle est illisible : un document vide est affiché à la place.",
+                "warning",
+              );
+            }
+          }
+          editor.commands.setContent(contenu, { emitUpdate: false });
+          dernierJson = JSON.stringify(nettoyerBlobs(editor.getJSON()));
+          const ref = modele?.[COLS_MODELE.tableRef];
+          await choisirTable(
+            TABLES.some((t) => t.ref === ref) ? ref : tableParDefaut(),
+          );
+        } finally {
+          chargement = false;
+        }
+        afficherModeles();
+        etatSauvegarde(modele ? "enregistre" : "");
+        if (modele) memoire.ecrire("modele", String(modele.id));
+        restaurerImages();
+        majOutils();
+      }
+
+      // Recharge les pièces jointes dont la blob URL a expiré
+      async function restaurerImages() {
+        const aCharger = [];
+        editor.state.doc.descendants((n, pos) => {
+          if (
+            n.type.name === "image" &&
+            n.attrs.att &&
+            !String(n.attrs.src || "").startsWith("blob:")
+          )
+            aCharger.push({ pos, att: n.attrs.att });
+        });
+        for (const { pos, att } of aCharger) {
+          try {
+            const src = await urlPJ(att);
+            const n = editor.state.doc.nodeAt(pos);
+            if (n?.type.name !== "image") continue;
+            const etait = chargement;
+            chargement = true;
+            editor.view.dispatch(
+              editor.state.tr.setNodeMarkup(pos, undefined, {
+                ...n.attrs,
+                src,
+              }),
+            );
+            chargement = etait;
+          } catch {
+            console.warn(`Image ${att} indisponible`);
+          }
+        }
+      }
+
+      $("sel-modele").addEventListener("change", (e) =>
+        ouvrirModele(Number(e.target.value)),
+      );
+      $("btn-nouveau").addEventListener("click", async () => {
+        const nom = prompt("Nom du nouveau modèle :", "Nouveau modèle");
+        if (nom === null) return;
+        await sauvegarder();
+        try {
+          const champs = {
+            [COLS_MODELE.nom]: nom.trim() || "Nouveau modèle",
+            [COLS_MODELE.mode]: "Fiche",
+            [COLS_MODELE.contenu]: JSON.stringify(CONTENU_VIDE),
+            [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
+            [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
+          };
+          const r = await grist.docApi.applyUserActions([
+            ["AddRecord", TABLE_MODELES, null, champs],
+          ]);
+          MODELES.push({ id: r.retValues[0], ...champs });
+          trierModeles();
+          await ouvrirModele(r.retValues[0]);
+        } catch (e) {
+          alerte(`Création impossible : ${e.message}`);
+        }
+      });
+      $("btn-dupliquer").addEventListener("click", async () => {
+        if (!modele) return;
+        const nom = prompt(
+          "Nom de la copie :",
+          `${modele[COLS_MODELE.nom] || "Modèle"} (copie)`,
+        );
+        if (nom === null) return;
+        await sauvegarder(true);
+        try {
+          const champs = {
+            ...modele,
+            [COLS_MODELE.nom]: nom.trim() || "Copie",
+          };
+          delete champs.id;
+          const r = await grist.docApi.applyUserActions([
+            ["AddRecord", TABLE_MODELES, null, champs],
+          ]);
+          MODELES.push({ id: r.retValues[0], ...champs });
+          trierModeles();
+          await ouvrirModele(r.retValues[0]);
+        } catch (e) {
+          alerte(`Duplication impossible : ${e.message}`);
+        }
+      });
+      $("btn-renommer").addEventListener("click", async () => {
+        if (!modele) return;
+        const nom = prompt("Nouveau nom :", modele[COLS_MODELE.nom] || "");
+        if (nom === null || !nom.trim()) return;
+        try {
+          await grist.docApi.applyUserActions([
+            [
+              "UpdateRecord",
+              TABLE_MODELES,
+              modele.id,
+              { [COLS_MODELE.nom]: nom.trim() },
+            ],
+          ]);
+          modele[COLS_MODELE.nom] = nom.trim();
+          trierModeles();
+          afficherModeles();
+        } catch (e) {
+          alerte(`Renommage impossible : ${e.message}`);
+        }
+      });
+      $("btn-supprimer").addEventListener("click", async () => {
+        if (
+          !modele ||
+          !confirm(
+            `Supprimer définitivement le modèle « ${modele[COLS_MODELE.nom]} » ? Cette action est irréversible.`,
+          )
+        )
+          return;
+        clearTimeout(minuteur);
+        const id = modele.id;
+        try {
+          await grist.docApi.applyUserActions([
+            ["RemoveRecord", TABLE_MODELES, id],
+          ]);
+          MODELES = MODELES.filter((m) => m.id !== id);
+          modele = null;
+          await ouvrirModele(MODELES[0]?.id ?? null);
+        } catch (e) {
+          alerte(`Suppression impossible : ${e.message}`);
+        }
+      });
 
       // ════════════════════════════════════════════════════════════════
       // Panneau des champs
@@ -1101,72 +1462,11 @@
             Balise,
             SautPage,
           ],
-          content:
-            contenuSauve ||
-            `<h1>Titre du document</h1><p>Commencez à écrire ici. Tapez @ pour insérer un champ, ou cliquez sur un champ dans la colonne de gauche.</p>`,
+          content: CONTENU_VIDE,
         });
         editor.on("transaction", majOutils);
-        editor.on("update", sauvegarderPlusTard);
-        dernierJsonSauve = JSON.stringify(nettoyerBlobs(editor.getJSON()));
-        restaurerImages();
+        editor.on("update", marquerModifie);
       }
-
-      // Recharge les pièces jointes dont la blob URL a expiré
-      async function restaurerImages() {
-        const aCharger = [];
-        editor.state.doc.descendants((node, pos) => {
-          if (
-            node.type.name === "image" &&
-            node.attrs.att &&
-            !String(node.attrs.src || "").startsWith("blob:")
-          )
-            aCharger.push({ pos, att: node.attrs.att });
-        });
-        for (const { pos, att } of aCharger) {
-          try {
-            const src = await urlPJ(att);
-            const n = editor.state.doc.nodeAt(pos);
-            if (n?.type.name === "image")
-              editor.view.dispatch(
-                editor.state.tr.setNodeMarkup(pos, undefined, {
-                  ...n.attrs,
-                  src,
-                }),
-              );
-          } catch {
-            console.warn(`Image ${att} indisponible`);
-          }
-        }
-        if (aCharger.length)
-          dernierJsonSauve = JSON.stringify(nettoyerBlobs(editor.getJSON()));
-      }
-
-      function sauvegarderPlusTard() {
-        clearTimeout(minuteurSauvegarde);
-        minuteurSauvegarde = setTimeout(sauvegarder, 600);
-      }
-      // Les blob URL sont éphémères : on ne garde que la référence data-att
-      function nettoyerBlobs(noeud) {
-        if (Array.isArray(noeud)) return noeud.map(nettoyerBlobs);
-        if (!noeud || typeof noeud !== "object") return noeud;
-        const n = { ...noeud };
-        if (n.type === "image" && n.attrs?.att)
-          n.attrs = { ...n.attrs, src: null };
-        if (n.content) n.content = nettoyerBlobs(n.content);
-        return n;
-      }
-      function sauvegarder() {
-        clearTimeout(minuteurSauvegarde);
-        if (!editor) return;
-        const json = JSON.stringify(nettoyerBlobs(editor.getJSON()));
-        if (json === dernierJsonSauve) return;
-        dernierJsonSauve = json;
-        grist
-          .setOption("contenu", JSON.parse(json))
-          .catch((e) => console.warn("Sauvegarde impossible :", e));
-      }
-      addEventListener("pagehide", sauvegarder);
-      addEventListener("blur", sauvegarder);
 
       // ── Barre d'outils ──
       const CMD = {
@@ -1226,15 +1526,15 @@
           CMD[b.dataset.cmd](editor.chain().focus()).run();
       });
       $("sel-style").addEventListener("change", (e) => {
-        const v = e.target.value;
-        const c = editor.chain().focus();
+        const v = e.target.value,
+          c = editor.chain().focus();
         (v === "p"
           ? c.setParagraph()
           : c.setHeading({ level: Number(v) })
         ).run();
       });
 
-      // ── Menus flottants : images et emojis ──
+      // ── Menus flottants ──
       function ouvrirPop(pop, bouton) {
         document
           .querySelectorAll(".pop:not(.suggest)")
@@ -1251,6 +1551,7 @@
             .querySelectorAll(".pop:not(.suggest)")
             .forEach((p) => (p.hidden = true));
       });
+
       $("pop-emoji").innerHTML = EMOJIS.map(
         (e) => `<button type="button">${e}</button>`,
       ).join("");
@@ -1308,7 +1609,7 @@
       $("btn-images").addEventListener("click", async () => {
         const pop = $("pop-images");
         if (!GALERIE.length) {
-          pop.innerHTML = `<p class="vide">Aucune image. Ajoutez des fichiers dans la colonne ${COL_IMAGES} de la table ${TABLE_MODELES}, puis cliquez sur Actualiser.</p>`;
+          pop.innerHTML = `<p class="vide">Aucune image disponible. Déposez des fichiers dans la colonne ${COLS_MODELE.images} de la table ${TABLE_MODELES}, puis cliquez sur Actualiser.</p>`;
           return ouvrirPop(pop, $("btn-images"));
         }
         pop.innerHTML = `<div class="galerie">${GALERIE.map((g) => `<button type="button" data-att="${g.id}" title="${esc(g.nom)}"><img alt="${esc(g.nom)}"></button>`).join("")}</div>`;
@@ -1323,16 +1624,18 @@
       $("pop-images").addEventListener("click", async (e) => {
         const b = e.target.closest("[data-att]");
         if (!b) return;
-        const id = Number(b.dataset.att);
-        const img = b.querySelector("img");
+        const id = Number(b.dataset.att),
+          img = b.querySelector("img");
         const src = await urlPJ(id);
-        const largeur = img.naturalWidth
-          ? Math.min(img.naturalWidth, 250)
-          : 200;
         editor
           .chain()
           .focus()
-          .setImage({ src, att: id, alt: b.title, width: largeur })
+          .setImage({
+            src,
+            att: id,
+            alt: b.title,
+            width: img.naturalWidth ? Math.min(img.naturalWidth, 250) : 200,
+          })
           .run();
         $("pop-images").hidden = true;
       });
@@ -1340,18 +1643,22 @@
       // ════════════════════════════════════════════════════════════════
       // Table source et enregistrements
       // ════════════════════════════════════════════════════════════════
-      async function choisirTable(ref, memoriser = true) {
+      function tableParDefaut() {
+        return (
+          TABLES.find((t) => t.tableId === tableLiee)?.ref ??
+          TABLES[0]?.ref ??
+          null
+        );
+      }
+      async function choisirTable(ref) {
         tableCourante = TABLES.find((t) => t.ref === ref) || null;
         $("sel-table").value = tableCourante ? String(tableCourante.ref) : "";
         COLONNES = tableCourante ? colonnesDe(tableCourante.ref) : [];
         COLS = new Map(COLONNES.map((c) => [c.ref, c]));
         afficherChamps();
         rafraichirTags();
-        if (memoriser && tableCourante)
-          grist.setOption("tableRef", tableCourante.ref).catch(() => {});
         await chargerEnregistrements();
       }
-
       async function chargerEnregistrements() {
         const idCourant = enregistrements[index]?.id;
         modeLie = !!tableCourante && tableLiee === tableCourante.tableId;
@@ -1369,7 +1676,6 @@
         majMode();
         majNav();
       }
-
       function majMode() {
         const b = $("badge-mode");
         if (!tableCourante) {
@@ -1383,7 +1689,6 @@
           ? "Le widget suit la ligne sélectionnée et respecte les filtres de la vue."
           : "Le widget n'est pas lié à cette table : choisissez l'enregistrement dans la liste.";
       }
-
       function majNav() {
         const n = enregistrements.length;
         $("sel-rec").innerHTML = n
@@ -1404,7 +1709,6 @@
           `<i class="ri-stack-line"></i>&nbsp;Tout imprimer (${n})`;
         if (enApercu) rafraichirApercu();
       }
-
       function allerA(i) {
         if (i < 0 || i >= enregistrements.length) return;
         index = i;
@@ -1417,9 +1721,10 @@
       $("sel-rec").addEventListener("change", (e) =>
         allerA(Number(e.target.value)),
       );
-      $("sel-table").addEventListener("change", (e) =>
-        choisirTable(Number(e.target.value)),
-      );
+      $("sel-table").addEventListener("change", async (e) => {
+        await choisirTable(Number(e.target.value));
+        sauvegarder(true);
+      });
       $("filtre-champs").addEventListener("input", afficherChamps);
       $("liste-champs").addEventListener("click", (e) => {
         const b = e.target.closest("[data-ref]");
@@ -1431,24 +1736,24 @@
       // ════════════════════════════════════════════════════════════════
       function cssContenu(s) {
         return `
-        ${s} { font-family: "Marianne", arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #161616; }
-        ${s} h1 { font-size: 20pt; line-height: 1.25; font-weight: 700; margin: 0 0 4mm; color: #161616; }
-        ${s} h2 { font-size: 15pt; line-height: 1.3; font-weight: 700; margin: 5mm 0 3mm; color: #161616; }
-        ${s} h3 { font-size: 12.5pt; line-height: 1.35; font-weight: 700; margin: 4mm 0 2mm; color: #161616; }
-        ${s} p { margin: 0 0 3mm; font-size: inherit; line-height: inherit; }
-        ${s} p:empty { min-height: 1.5em; }
-        ${s} ul, ${s} ol { margin: 0 0 3mm; padding-left: 6mm; }
-        ${s} ul { list-style-type: disc; }
-        ${s} ol { list-style-type: decimal; }
-        ${s} li { margin: 0; padding: 0; }
-        ${s} li::marker { font-weight: 400; }
-        ${s} li > p { margin: 0; }
-        ${s} table { border-collapse: collapse; margin: 0 0 3mm; }
-        ${s} th, ${s} td { border: 1px solid #929292; padding: 1.5mm 2.5mm; text-align: left; vertical-align: top; min-width: 2em; }
-        ${s} th { background: #EEEEEE; font-weight: 700; }
-        ${s} td > p, ${s} th > p { margin: 0; }
-        ${s} img { max-width: 100%; height: auto; }
-        ${s} a { color: #000091; }`;
+  ${s} { font-family: "Marianne", arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #161616; }
+  ${s} h1 { font-size: 20pt; line-height: 1.25; font-weight: 700; margin: 0 0 4mm; color: #161616; }
+  ${s} h2 { font-size: 15pt; line-height: 1.3; font-weight: 700; margin: 5mm 0 3mm; color: #161616; }
+  ${s} h3 { font-size: 12.5pt; line-height: 1.35; font-weight: 700; margin: 4mm 0 2mm; color: #161616; }
+  ${s} p { margin: 0 0 3mm; font-size: inherit; line-height: inherit; }
+  ${s} p:empty { min-height: 1.5em; }
+  ${s} ul, ${s} ol { margin: 0 0 3mm; padding-left: 6mm; }
+  ${s} ul { list-style-type: disc; }
+  ${s} ol { list-style-type: decimal; }
+  ${s} li { margin: 0; padding: 0; }
+  ${s} li::marker { font-weight: 400; }
+  ${s} li > p { margin: 0; }
+  ${s} table { border-collapse: collapse; margin: 0 0 3mm; }
+  ${s} th, ${s} td { border: 1px solid #929292; padding: 1.5mm 2.5mm; text-align: left; vertical-align: top; min-width: 2em; }
+  ${s} th { background: #EEEEEE; font-weight: 700; }
+  ${s} td > p, ${s} th > p { margin: 0; }
+  ${s} img { max-width: 100%; height: auto; }
+  ${s} a { color: #000091; }`;
       }
       document.head.insertAdjacentHTML(
         "beforeend",
@@ -1456,27 +1761,27 @@
       );
 
       const CSS_IMPRESSION = `
-        @font-face { font-family: "Marianne"; font-weight: 400; src: url("${FONTS_URL}Marianne-Regular.woff2") format("woff2"); }
-        @font-face { font-family: "Marianne"; font-weight: 400; font-style: italic; src: url("${FONTS_URL}Marianne-Regular_Italic.woff2") format("woff2"); }
-        @font-face { font-family: "Marianne"; font-weight: 500; src: url("${FONTS_URL}Marianne-Medium.woff2") format("woff2"); }
-        @font-face { font-family: "Marianne"; font-weight: 700; src: url("${FONTS_URL}Marianne-Bold.woff2") format("woff2"); }
-        @font-face { font-family: "Marianne"; font-weight: 700; font-style: italic; src: url("${FONTS_URL}Marianne-Bold_Italic.woff2") format("woff2"); }
-        @page {
-          size: A4; margin: 20mm 20mm 22mm;
-          @bottom-left  { content: "${PIED_GAUCHE}"; font: 8pt "Marianne", arial, sans-serif; color: #666; }
-          @bottom-right { content: "Page " counter(page) "/" counter(pages); font: 8pt "Marianne", arial, sans-serif; color: #666; }
-        }
-        html, body { margin: 0; }
-        @media screen { body { padding: 20mm; } }
-        ${cssContenu("body")}
-        th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        thead { display: table-header-group; }
-        tr, img { break-inside: avoid; }
-        h1, h2, h3 { break-after: avoid; }
-        .saut-page { break-before: page; height: 0; margin: 0; border: 0; }
-        .fiche + .fiche { break-before: page; }
-        .valeur { white-space: pre-line; }
-      `;
+  @font-face { font-family: "Marianne"; font-weight: 400; src: url("${FONTS_URL}Marianne-Regular.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 400; font-style: italic; src: url("${FONTS_URL}Marianne-Regular_Italic.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 500; src: url("${FONTS_URL}Marianne-Medium.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 700; src: url("${FONTS_URL}Marianne-Bold.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 700; font-style: italic; src: url("${FONTS_URL}Marianne-Bold_Italic.woff2") format("woff2"); }
+  @page {
+    size: A4; margin: 20mm 20mm 22mm;
+    @bottom-left  { content: "${PIED_GAUCHE}"; font: 8pt "Marianne", arial, sans-serif; color: #666; }
+    @bottom-right { content: "Page " counter(page) "/" counter(pages); font: 8pt "Marianne", arial, sans-serif; color: #666; }
+  }
+  html, body { margin: 0; }
+  @media screen { body { padding: 20mm; } }
+  ${cssContenu("body")}
+  th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  thead { display: table-header-group; }
+  tr, img { break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+  .saut-page { break-before: page; height: 0; margin: 0; border: 0; }
+  .fiche + .fiche { break-before: page; }
+  .valeur { white-space: pre-line; }
+`;
       const POLICES = [
         "400 16px Marianne",
         "italic 400 16px Marianne",
@@ -1485,8 +1790,8 @@
       ];
 
       function documentImpression(corps) {
-        return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Document</title>
-          <style>${CSS_IMPRESSION}</style></head><body>${corps}</body></html>`;
+        return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>${esc(modele?.[COLS_MODELE.nom] || "Document")}</title>
+    <style>${CSS_IMPRESSION}</style></head><body>${corps}</body></html>`;
       }
       async function attendreRessources(doc) {
         await Promise.all(
@@ -1505,6 +1810,7 @@
             try {
               img.src = await urlPJ(Number(img.dataset.att));
             } catch {
+              img.removeAttribute("src");
               img.alt = "Image indisponible";
             }
           }),
@@ -1525,7 +1831,6 @@
         });
         return tmp.innerHTML;
       }
-
       async function imprimer(recs) {
         statut("Préparation de l'impression…");
         try {
@@ -1554,7 +1859,6 @@
           alerte(`Impression impossible : ${e.message}`);
         }
       }
-
       async function rafraichirApercu() {
         const f = $("apercu");
         const charge = new Promise((r) => (f.onload = r));
@@ -1578,7 +1882,6 @@
         if (enApercu) rafraichirApercu();
         else majOutils();
       }
-
       $("btn-apercu").addEventListener("click", basculerApercu);
       $("btn-imprimer").addEventListener(
         "click",
@@ -1598,9 +1901,18 @@
       $("btn-actualiser").addEventListener("click", async () => {
         statut("Actualisation…");
         try {
-          await Promise.all([chargerMeta(), chargerGalerie()]);
+          await sauvegarder();
+          await chargerMeta();
+          await chargerModeles();
+          await chargerGalerie();
           remplirTables();
-          await choisirTable(tableCourante?.ref, false);
+          const id =
+            modele && MODELES.some((m) => m.id === modele.id)
+              ? modele.id
+              : (MODELES[0]?.id ?? null);
+          modele = null;
+          await ouvrirModele(id);
+          alerte("");
         } catch (e) {
           alerte(`Actualisation impossible : ${e.message}`);
         }
@@ -1624,8 +1936,7 @@
         async (recs) => {
           recsLies = recs || [];
           tableLiee = grist.getSelectedTableIdSync?.() ?? tableLiee;
-          if (!pret || !tableCourante) return;
-          if (tableCourante.tableId === tableLiee)
+          if (pret && tableCourante && tableCourante.tableId === tableLiee)
             await chargerEnregistrements();
         },
         { includeColumns: "normal" },
@@ -1647,17 +1958,19 @@
         statut("Chargement…");
         try {
           await chargerMeta();
+          await chargerModeles();
         } catch (e) {
           statut("");
           return alerte(
-            "Le widget doit avoir l'accès complet au document (panneau de droite, « Accès du widget »).",
+            /accès|access|permission/i.test(e.message)
+              ? "Le widget doit avoir l'accès complet au document (panneau de droite, « Accès du widget »)."
+              : e.message,
           );
         }
         tableLiee = await Promise.race([
           grist.getSelectedTableId(),
           attendre(2500, null),
         ]);
-        contenuSauve = await grist.getOption("contenu").catch(() => null);
         try {
           await Promise.all([initEditeur(), chargerGalerie()]);
         } catch (e) {
@@ -1666,12 +1979,15 @@
           return alerte(`Chargement de l'éditeur impossible : ${e.message}`);
         }
         remplirTables();
-        let ref = await grist.getOption("tableRef").catch(() => null);
-        if (!TABLES.some((t) => t.ref === ref))
-          ref =
-            TABLES.find((t) => t.tableId === tableLiee)?.ref ?? TABLES[0]?.ref;
-        await choisirTable(ref, false);
-        majOutils();
+        const memorise = Number(memoire.lire("modele"));
+        const id = MODELES.some((m) => m.id === memorise)
+          ? memorise
+          : (MODELES.find(
+              (m) => nomTable(m[COLS_MODELE.tableRef]) === tableLiee,
+            )?.id ??
+            MODELES[0]?.id ??
+            null);
+        await ouvrirModele(id);
         pret = true;
         statut("");
       }
