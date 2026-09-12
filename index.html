@@ -110,6 +110,7 @@
       }
       .panneau-gauche {
         border-right: 1px solid #ddd;
+        overflow: auto;
       }
       .panneau-droit {
         width: 290px;
@@ -174,20 +175,22 @@
       .bascule input {
         width: auto;
       }
-      #liste-champs {
-        overflow: auto;
+      .tags {
         display: flex;
         flex-wrap: wrap;
         gap: 0.4rem;
         align-content: flex-start;
-        padding-bottom: 0.5rem;
       }
-      #liste-champs .fr-tag {
+      .tags .fr-tag {
         cursor: pointer;
       }
-      #liste-champs .fr-tag i {
+      .tags .fr-tag i {
         margin-right: 0.25rem;
         font-size: 0.85em;
+      }
+      .tag-agg {
+        background: #fee7fc !important;
+        color: #6e445a !important;
       }
       .zone {
         flex: 1;
@@ -261,17 +264,6 @@
         background: #fff;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
         box-sizing: border-box;
-        position: relative;
-      }
-      .feuille::before,
-      .feuille::after {
-        content: "";
-        position: absolute;
-        left: 0;
-        right: 0;
-        height: 0;
-        border-top: 1px dashed #e0e0e0;
-        pointer-events: none;
       }
       .feuille .ProseMirror {
         outline: none;
@@ -320,6 +312,12 @@
       .feuille .ProseMirror a {
         cursor: pointer;
       }
+      .feuille tr[data-repete] > * {
+        background: #f7f7ff;
+      }
+      .feuille tr[data-repete] > *:first-child {
+        box-shadow: inset 3px 0 0 #000091;
+      }
 
       /* ── Balises ── */
       .balise {
@@ -334,6 +332,10 @@
         cursor: grab;
         white-space: nowrap;
         user-select: none;
+      }
+      .balise-agg {
+        background: #fee7fc;
+        color: #6e445a;
       }
       .balise-orpheline {
         background: #ffe9e9;
@@ -457,6 +459,7 @@
       <button class="tb" id="btn-supprimer" title="Supprimer le modèle">
         <i class="ri-delete-bin-line"></i>
       </button>
+      <span id="badge-mode-doc" class="fr-badge fr-badge--sm"></span>
       <span id="etat-sauvegarde"></span>
     </header>
 
@@ -466,7 +469,7 @@
         <select id="sel-table" class="sel"></select
       ></label>
       <span id="badge-mode" class="fr-badge fr-badge--sm"></span>
-      <div class="nav">
+      <div class="nav" id="bloc-nav">
         <button class="tb" id="btn-prec" title="Enregistrement précédent">
           <i class="ri-arrow-left-s-line"></i>
         </button>
@@ -519,7 +522,25 @@
         <p class="aide">
           Cliquez sur un champ pour l'insérer, ou tapez @ dans le texte.
         </p>
-        <div id="liste-champs"></div>
+        <div id="liste-champs" class="tags"></div>
+
+        <div id="bloc-rapport" hidden>
+          <h3>Calculs</h3>
+          <label class="champ"
+            ><span>Fonction appliquée aux colonnes</span>
+            <select id="sel-fonction">
+              <option value="somme">Somme</option>
+              <option value="moyenne">Moyenne</option>
+              <option value="min">Minimum</option>
+              <option value="max">Maximum</option>
+            </select></label
+          >
+          <div id="liste-calculs" class="tags" style="margin-top: 0.5rem"></div>
+          <p class="aide">
+            Les calculs portent sur toutes les lignes affichées. Placez-les hors
+            de la ligne répétée, par exemple sur une ligne de total.
+          </p>
+        </div>
       </aside>
 
       <section class="zone">
@@ -614,6 +635,15 @@
           >
             <i class="ri-delete-bin-line"></i>
           </button>
+          <button
+            class="tb"
+            id="btn-repetee"
+            data-table
+            title="Répéter cette ligne pour chaque enregistrement"
+            hidden
+          >
+            <i class="ri-repeat-line"></i>
+          </button>
           <span class="sep"></span>
           <button class="tb" id="btn-lien" title="Insérer ou modifier un lien">
             <i class="ri-link"></i>
@@ -643,6 +673,18 @@
 
       <aside class="panneau panneau-droit" id="panneau-mep" hidden>
         <h2>Mise en page</h2>
+
+        <label class="champ"
+          ><span>Type de document</span>
+          <select id="mep-mode">
+            <option value="Fiche">
+              Fiche — un document par enregistrement
+            </option>
+            <option value="Rapport">
+              Rapport — un document listant les enregistrements
+            </option>
+          </select></label
+        >
 
         <h3>Papier</h3>
         <div class="ligne2">
@@ -762,7 +804,7 @@
       // ════════════════════════════════════════════════════════════════
       // Configuration
       // ════════════════════════════════════════════════════════════════
-      const VERSION = "p3.0";
+      const VERSION = "p5.0";
       const TABLE_MODELES = "Modeles_PDF";
       const COLS_MODELE = {
         nom: "Nom",
@@ -801,6 +843,12 @@
         ChoiceList: "ri-list-check-2",
         Ref: "ri-links-line",
         RefList: "ri-links-line",
+      };
+      const FONCTIONS = {
+        somme: "Somme",
+        moyenne: "Moyenne",
+        min: "Minimum",
+        max: "Maximum",
       };
       const FORMATS = {
         a4: { l: 210, h: 297, css: "A4" },
@@ -849,6 +897,7 @@
       let GALERIE = [];
       let modele = null;
       let mep = structuredClone(MEP_DEFAUT);
+      let modeDoc = "Fiche";
       let modeleNomFichier = "";
       let tableCourante = null;
       let tableLiee = null;
@@ -862,6 +911,8 @@
       let minuteur = null;
       let dernierEtat = null;
       let ecritureEnCours = false;
+
+      const estRapport = () => modeDoc === "Rapport";
 
       // ════════════════════════════════════════════════════════════════
       // Utilitaires
@@ -898,6 +949,8 @@
         const n = Number(v);
         return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
       };
+      const estNumerique = (col) =>
+        ["Numeric", "Int"].includes(typeBase(col.type));
 
       function statut(msg) {
         $("statut").textContent = msg || "";
@@ -1140,6 +1193,38 @@
         const txt = col ? formater(brute(rec, col), col) : "";
         return `${i + 1}. ${txt || `Ligne ${rec.id}`}`.slice(0, 80);
       }
+      function nombreDe(rec, col) {
+        const v = rec?.[col.colId];
+        return typeof v === "number" && Number.isFinite(v) ? v : null;
+      }
+      function calculer(fonc, col, recs) {
+        if (fonc === "nb") return recs.length.toLocaleString("fr-FR");
+        if (fonc === "datejour") return new Date().toLocaleDateString("fr-FR");
+        if (!col) return "";
+        const vals = recs
+          .map((r) => nombreDe(r, col))
+          .filter((v) => v !== null);
+        if (!vals.length) return "";
+        let n;
+        if (fonc === "somme") n = vals.reduce((a, b) => a + b, 0);
+        else if (fonc === "moyenne")
+          n = vals.reduce((a, b) => a + b, 0) / vals.length;
+        else if (fonc === "min") n = Math.min(...vals);
+        else if (fonc === "max") n = Math.max(...vals);
+        else return "";
+        return n.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+      }
+      function libelleBalise(colRef, fonc, secours) {
+        const col = COLS.get(colRef);
+        if (fonc === "nb") return "Nombre de lignes";
+        if (fonc === "datejour") return "Date du jour";
+        if (!col) return secours || "Champ inconnu";
+        if (!fonc) return col.label;
+        const prefixe =
+          { somme: "Σ", moyenne: "Moy.", min: "Min.", max: "Max." }[fonc] ||
+          fonc;
+        return `${prefixe} ${col.label}`;
+      }
 
       // ════════════════════════════════════════════════════════════════
       // Mise en page
@@ -1166,6 +1251,7 @@
         return m;
       }
       function remplirFormulaireMep() {
+        $("mep-mode").value = modeDoc;
         $("mep-format").value = mep.format;
         $("mep-orientation").value = mep.orientation;
         $("mep-police").value = mep.police;
@@ -1197,6 +1283,8 @@
         }
       }
       function lireFormulaireMep() {
+        const modeAvant = modeDoc;
+        modeDoc = $("mep-mode").value === "Rapport" ? "Rapport" : "Fiche";
         mep = normaliserMep({
           format: $("mep-format").value,
           orientation: $("mep-orientation").value,
@@ -1226,6 +1314,7 @@
         majBlocsMep();
         modeleNomFichier = $("mep-nom-fichier").value.slice(0, 200);
         appliquerMepEcran();
+        if (modeAvant !== modeDoc) appliquerMode();
         majApercuNom();
         marquerModifie();
         if (enApercu) rafraichirApercu();
@@ -1245,7 +1334,6 @@
         $("apercu").style.width = `${d.l}mm`;
         $("apercu").style.minHeight = `${d.h}mm`;
       }
-      // Codes disponibles dans l'en-tête et le pied de page
       function contenuCss(gabarit) {
         if (!gabarit) return "none";
         const parts = [];
@@ -1295,11 +1383,11 @@
         return `${nom || "document"}.pdf`;
       }
       function majApercuNom() {
-        $("apercu-nom").textContent = enregistrements[index]
-          ? nomFichierCalcule(enregistrements[index])
-          : "—";
+        const rec = estRapport() ? enregistrements[0] : enregistrements[index];
+        $("apercu-nom").textContent = rec ? nomFichierCalcule(rec) : "—";
       }
       [
+        "mep-mode",
         "mep-format",
         "mep-orientation",
         "mep-police",
@@ -1332,6 +1420,27 @@
         remplirFormulaireMep();
         lireFormulaireMep();
       });
+
+      // ── Bascule Fiche / Rapport ──
+      function appliquerMode() {
+        const r = estRapport();
+        $("badge-mode-doc").className =
+          `fr-badge fr-badge--sm ${r ? "fr-badge--purple-glycine" : ""}`;
+        $("badge-mode-doc").textContent = r ? "Rapport" : "Fiche";
+        $("bloc-rapport").hidden = !r;
+        $("btn-repetee").hidden = !r;
+        $("btn-imprimer-tout").hidden = r;
+        $("btn-imprimer").innerHTML = r
+          ? `<i class="ri-printer-line"></i>&nbsp;Imprimer le rapport`
+          : `<i class="ri-printer-line"></i>&nbsp;Imprimer`;
+        ["btn-prec", "btn-suiv", "sel-rec"].forEach((i) => ($(i).disabled = r));
+        $("bloc-nav").style.opacity = r ? ".5" : "1";
+        $("bloc-nav").title = r
+          ? "En mode Rapport, toutes les lignes affichées sont utilisées."
+          : "";
+        afficherCalculs();
+        majNav();
+      }
 
       // ════════════════════════════════════════════════════════════════
       // Modèles : lecture et écriture dans Modeles_PDF
@@ -1368,7 +1477,6 @@
           (b) => ($(b).disabled = !modele),
         );
       }
-
       function imagesUtilisees() {
         const ids = new Set();
         editor?.state.doc.descendants((n) => {
@@ -1401,18 +1509,20 @@
             nettoyerBlobs(editor.getJSON()),
           ),
           [COLS_MODELE.miseEnPage]: JSON.stringify(mep),
+          [COLS_MODELE.mode]: modeDoc,
           [COLS_MODELE.nomFichier]: modeleNomFichier,
           [COLS_MODELE.images]: ["L", ...conservees],
           [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
           [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
         };
       }
-      const empreinte = (champs) =>
+      const empreinte = (c) =>
         JSON.stringify([
-          champs[COLS_MODELE.contenu],
-          champs[COLS_MODELE.miseEnPage],
-          champs[COLS_MODELE.nomFichier],
-          champs[COLS_MODELE.tableRef],
+          c[COLS_MODELE.contenu],
+          c[COLS_MODELE.miseEnPage],
+          c[COLS_MODELE.mode],
+          c[COLS_MODELE.nomFichier],
+          c[COLS_MODELE.tableRef],
         ]);
       async function creerModele(nom, champs) {
         const c = {
@@ -1479,6 +1589,8 @@
               : null;
           } catch {}
           mep = normaliserMep(brutMep);
+          modeDoc =
+            modele?.[COLS_MODELE.mode] === "Rapport" ? "Rapport" : "Fiche";
           modeleNomFichier = String(modele?.[COLS_MODELE.nomFichier] || "");
           editor.commands.setContent(contenu, { emitUpdate: false });
           remplirFormulaireMep();
@@ -1487,6 +1599,7 @@
           await choisirTable(
             TABLES.some((t) => t.ref === ref) ? ref : tableParDefaut(),
           );
+          appliquerMode();
           dernierEtat = empreinte(champsCourants());
         } finally {
           chargement = false;
@@ -1620,8 +1733,17 @@
       });
 
       // ════════════════════════════════════════════════════════════════
-      // Panneau des champs
+      // Panneau des champs et des calculs
       // ════════════════════════════════════════════════════════════════
+      function tagHtml(item) {
+        const icone = item.fonc
+          ? "ri-functions"
+          : ICONES_TYPE[typeBase(item.type)] || "ri-code-line";
+        const cls = item.fonc
+          ? "fr-tag fr-tag--sm tag-agg"
+          : "fr-tag fr-tag--sm";
+        return `<button type="button" class="${cls}" data-ref="${item.ref ?? ""}" data-fonc="${item.fonc || ""}" title="${esc(item.titre || item.colId || "")}"><i class="${icone}"></i>${esc(item.libelle)}</button>`;
+      }
       function afficherChamps() {
         const q = norm($("filtre-champs").value.trim());
         const liste = COLONNES.filter(
@@ -1634,27 +1756,128 @@
         );
         $("liste-champs").innerHTML = liste.length
           ? liste
-              .map(
-                (c) =>
-                  `<button type="button" class="fr-tag fr-tag--sm" data-ref="${c.ref}" title="${esc(c.colId)} (${esc(typeBase(c.type))})"><i class="${ICONES_TYPE[typeBase(c.type)] || "ri-code-line"}"></i>${esc(c.label)}</button>`,
+              .map((c) =>
+                tagHtml({
+                  ref: c.ref,
+                  libelle: c.label,
+                  type: c.type,
+                  colId: c.colId,
+                  titre: `${c.colId} (${typeBase(c.type)})`,
+                }),
               )
               .join("")
           : `<p class="aide">${COLONNES.length ? "Aucun champ ne correspond." : "Choisissez une table source."}</p>`;
       }
-      function insererBalise(col, chaine = editor.chain().focus()) {
+      function afficherCalculs() {
+        if (!estRapport()) return;
+        const fonc = $("sel-fonction").value;
+        const num = COLONNES.filter(estNumerique);
+        const items = [
+          {
+            ref: null,
+            fonc: "nb",
+            libelle: "Nombre de lignes",
+            titre: "Nombre de lignes affichées",
+          },
+          {
+            ref: null,
+            fonc: "datejour",
+            libelle: "Date du jour",
+            titre: "Date du jour",
+          },
+          ...num.map((c) => ({
+            ref: c.ref,
+            fonc,
+            libelle: libelleBalise(c.ref, fonc),
+            titre: `${FONCTIONS[fonc]} de ${c.colId}`,
+          })),
+        ];
+        $("liste-calculs").innerHTML =
+          items.map(tagHtml).join("") +
+          (num.length
+            ? ""
+            : `<p class="aide">Aucune colonne numérique dans cette table.</p>`);
+      }
+      $("sel-fonction").addEventListener("change", afficherCalculs);
+      function insererBalise(item, chaine = editor.chain().focus()) {
         return chaine
           .insertContent([
-            { type: "balise", attrs: { colRef: col.ref, label: col.label } },
+            {
+              type: "balise",
+              attrs: {
+                colRef: item.ref ?? null,
+                fonc: item.fonc || null,
+                label: item.libelle,
+              },
+            },
             { type: "text", text: " " },
           ])
           .run();
       }
+      for (const zone of ["liste-champs", "liste-calculs"]) {
+        $(zone).addEventListener("click", (e) => {
+          const b = e.target.closest("[data-ref]");
+          if (!b || !editor) return;
+          const ref = b.dataset.ref ? Number(b.dataset.ref) : null;
+          insererBalise({
+            ref,
+            fonc: b.dataset.fonc || null,
+            libelle: libelleBalise(ref, b.dataset.fonc || null),
+          });
+        });
+      }
+      $("filtre-champs").addEventListener("input", afficherChamps);
 
       // ════════════════════════════════════════════════════════════════
       // Autocomplétion @
       // ════════════════════════════════════════════════════════════════
       let suggestProps = null;
       let suggestIndex = 0;
+      function itemsSuggestion(query) {
+        const q = norm(query);
+        const champs = COLONNES.map((c) => ({
+          ref: c.ref,
+          fonc: null,
+          libelle: c.label,
+          colId: c.colId,
+          type: c.type,
+        }));
+        const calculs = estRapport()
+          ? [
+              {
+                ref: null,
+                fonc: "nb",
+                libelle: "Nombre de lignes",
+                colId: "calcul",
+              },
+              {
+                ref: null,
+                fonc: "datejour",
+                libelle: "Date du jour",
+                colId: "calcul",
+              },
+              ...COLONNES.filter(estNumerique).flatMap((c) =>
+                Object.keys(FONCTIONS).map((f) => ({
+                  ref: c.ref,
+                  fonc: f,
+                  libelle: libelleBalise(c.ref, f),
+                  colId: c.colId,
+                  type: c.type,
+                })),
+              ),
+            ]
+          : [];
+        return [...champs, ...calculs]
+          .filter(
+            (it) =>
+              !q ||
+              norm(it.libelle)
+                .split(/\s+/)
+                .some((w) => w.startsWith(q)) ||
+              norm(it.colId).startsWith(q),
+          )
+          .slice(0, 12);
+      }
       function dessinerSuggestion() {
         const menu = $("menu-suggest");
         if (!suggestProps) {
@@ -1666,7 +1889,7 @@
           ? items
               .map(
                 (c, i) =>
-                  `<button type="button" class="suggest-item${i === suggestIndex ? " actif" : ""}" data-i="${i}"><i class="${ICONES_TYPE[typeBase(c.type)] || "ri-code-line"}"></i><span>${esc(c.label)}</span><small>${esc(c.colId)}</small></button>`,
+                  `<button type="button" class="suggest-item${i === suggestIndex ? " actif" : ""}" data-i="${i}"><i class="${c.fonc ? "ri-functions" : ICONES_TYPE[typeBase(c.type)] || "ri-code-line"}"></i><span>${esc(c.libelle)}</span><small>${esc(c.colId)}</small></button>`,
               )
               .join("")
           : `<p class="vide">Aucun champ ne correspond.</p>`;
@@ -1730,14 +1953,19 @@
       // Éditeur TipTap
       // ════════════════════════════════════════════════════════════════
       function peindreTag(dom) {
-        const col = COLS.get(Number(dom.dataset.colref));
-        dom.className = col ? "balise" : "balise balise-orpheline";
-        dom.textContent = col
-          ? col.label
-          : dom.dataset.label || "Champ inconnu";
-        dom.title = col
-          ? `Champ : ${col.colId}`
-          : "Ce champ n'existe pas dans la table source";
+        const ref = dom.dataset.colref ? Number(dom.dataset.colref) : null;
+        const fonc = dom.dataset.fonc || null;
+        const col = COLS.get(ref);
+        const orpheline = ref !== null && !col;
+        dom.className = `balise${fonc ? " balise-agg" : ""}${orpheline ? " balise-orpheline" : ""}`;
+        dom.textContent = libelleBalise(ref, fonc, dom.dataset.label);
+        dom.title = orpheline
+          ? "Ce champ n'existe pas dans la table source"
+          : fonc
+            ? `Calcul sur toutes les lignes affichées`
+            : col
+              ? `Champ : ${col.colId}`
+              : "";
       }
       function rafraichirTags() {
         editor?.view.dom.querySelectorAll(".balise").forEach(peindreTag);
@@ -1764,7 +1992,13 @@
                 default: null,
                 parseHTML: (el) =>
                   Number(el.getAttribute("data-colref")) || null,
-                renderHTML: (a) => ({ "data-colref": a.colRef }),
+                renderHTML: (a) =>
+                  a.colRef ? { "data-colref": a.colRef } : {},
+              },
+              fonc: {
+                default: null,
+                parseHTML: (el) => el.getAttribute("data-fonc") || null,
+                renderHTML: (a) => (a.fonc ? { "data-fonc": a.fonc } : {}),
               },
               label: {
                 default: "",
@@ -1775,24 +2009,31 @@
             };
           },
           parseHTML() {
-            return [{ tag: "span[data-colref]" }];
+            return [{ tag: "span[data-colref]" }, { tag: "span[data-fonc]" }];
           },
           renderHTML({ node, HTMLAttributes }) {
             return [
               "span",
               mergeAttributes(HTMLAttributes, { class: "balise" }),
-              COLS.get(node.attrs.colRef)?.label || node.attrs.label || "?",
+              libelleBalise(
+                node.attrs.colRef,
+                node.attrs.fonc,
+                node.attrs.label,
+              ),
             ];
           },
           renderText({ node }) {
-            return `[${COLS.get(node.attrs.colRef)?.label || node.attrs.label}]`;
+            return `[${libelleBalise(node.attrs.colRef, node.attrs.fonc, node.attrs.label)}]`;
           },
           addNodeView() {
             return ({ node }) => {
               const dom = document.createElement("span");
               dom.contentEditable = "false";
               const peindre = (n) => {
-                dom.dataset.colref = n.attrs.colRef;
+                if (n.attrs.colRef) dom.dataset.colref = n.attrs.colRef;
+                else delete dom.dataset.colref;
+                if (n.attrs.fonc) dom.dataset.fonc = n.attrs.fonc;
+                else delete dom.dataset.fonc;
                 dom.dataset.label = n.attrs.label;
                 peindreTag(dom);
               };
@@ -1809,17 +2050,7 @@
               Suggestion({
                 editor: this.editor,
                 char: "@",
-                items: ({ query }) => {
-                  const q = norm(query);
-                  return COLONNES.filter(
-                    (c) =>
-                      !q ||
-                      norm(c.label)
-                        .split(/\s+/)
-                        .some((w) => w.startsWith(q)) ||
-                      norm(c.colId).startsWith(q),
-                  ).slice(0, 12);
-                },
+                items: ({ query }) => itemsSuggestion(query),
                 command: ({ editor: ed, range, props }) =>
                   insererBalise(props, ed.chain().focus().deleteRange(range)),
                 render: rendreSuggestion,
@@ -1861,12 +2092,29 @@
           },
         });
 
+        // Ligne de tableau répétée pour chaque enregistrement (mode Rapport)
+        const LigneRepetee = tb.TableRow.extend({
+          addAttributes() {
+            return {
+              ...this.parent?.(),
+              repete: {
+                default: false,
+                parseHTML: (el) => el.hasAttribute("data-repete"),
+                renderHTML: (a) => (a.repete ? { "data-repete": "" } : {}),
+              },
+            };
+          },
+        });
+
         editor = new Editor({
           element: $("editeur"),
           extensions: [
             StarterKit.configure({ link: { openOnClick: false } }),
             al.TextAlign.configure({ types: ["heading", "paragraph"] }),
-            tb.TableKit,
+            tb.Table.configure({ resizable: true }),
+            LigneRepetee,
+            tb.TableHeader,
+            tb.TableCell,
             ImagePJ,
             Balise,
             SautPage,
@@ -1876,6 +2124,29 @@
         editor.on("transaction", majOutils);
         editor.on("update", marquerModifie);
       }
+
+      // ── Ligne répétée ──
+      function positionLigne() {
+        const { $from } = editor.state.selection;
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === "tableRow")
+            return { pos: $from.before(d), node: $from.node(d) };
+        }
+        return null;
+      }
+      function basculerRepetee() {
+        const l = positionLigne();
+        if (!l) return;
+        const { state, view } = editor;
+        view.dispatch(
+          state.tr.setNodeMarkup(l.pos, undefined, {
+            ...l.node.attrs,
+            repete: !l.node.attrs.repete,
+          }),
+        );
+        editor.commands.focus();
+      }
+      $("btn-repetee").addEventListener("click", basculerRepetee);
 
       // ── Barre d'outils ──
       const CMD = {
@@ -1921,8 +2192,11 @@
           b.classList.toggle("actif", !!a && editor.isActive(...a));
           if (b.hasAttribute("data-table")) b.disabled = !dansTableau;
         });
+        const ligne = positionLigne();
+        $("btn-repetee").disabled = !ligne;
+        $("btn-repetee").classList.toggle("actif", !!ligne?.node.attrs.repete);
         $("sel-style").value =
-          [1, 2, 3].find((l) => editor.isActive("heading", { level: l })) ??
+          [1, 2, 3].find((n) => editor.isActive("heading", { level: n })) ??
           "p";
         $("btn-lien").classList.toggle("actif", editor.isActive("link"));
       }
@@ -2065,6 +2339,7 @@
         COLONNES = tableCourante ? colonnesDe(tableCourante.ref) : [];
         COLS = new Map(COLONNES.map((c) => [c.ref, c]));
         afficherChamps();
+        afficherCalculs();
         rafraichirTags();
         await chargerEnregistrements();
       }
@@ -2109,9 +2384,15 @@
               .join("")
           : `<option>Aucun enregistrement</option>`;
         $("sel-rec").value = String(index);
-        $("compteur").textContent = n ? `${index + 1} / ${n}` : "";
-        $("btn-prec").disabled = index <= 0;
-        $("btn-suiv").disabled = index >= n - 1;
+        $("compteur").textContent = !n
+          ? ""
+          : estRapport()
+            ? `${n} ligne${n > 1 ? "s" : ""}`
+            : `${index + 1} / ${n}`;
+        if (!estRapport()) {
+          $("btn-prec").disabled = index <= 0;
+          $("btn-suiv").disabled = index >= n - 1;
+        }
         $("btn-imprimer").disabled = !n;
         $("btn-imprimer-tout").disabled = !n;
         $("btn-imprimer-tout").innerHTML =
@@ -2120,7 +2401,7 @@
         if (enApercu) rafraichirApercu();
       }
       function allerA(i) {
-        if (i < 0 || i >= enregistrements.length) return;
+        if (estRapport() || i < 0 || i >= enregistrements.length) return;
         index = i;
         majNav();
         if (modeLie)
@@ -2134,11 +2415,6 @@
       $("sel-table").addEventListener("change", async (e) => {
         await choisirTable(Number(e.target.value));
         sauvegarder(true);
-      });
-      $("filtre-champs").addEventListener("input", afficherChamps);
-      $("liste-champs").addEventListener("click", (e) => {
-        const b = e.target.closest("[data-ref]");
-        if (b && editor) insererBalise(COLS.get(Number(b.dataset.ref)));
       });
 
       // ════════════════════════════════════════════════════════════════
@@ -2235,19 +2511,79 @@
         );
         return tmp.innerHTML;
       }
+      function remplacerBalises(racine, rec, recs) {
+        racine
+          .querySelectorAll("span[data-colref], span[data-fonc]")
+          .forEach((el) => {
+            const ref = el.dataset.colref ? Number(el.dataset.colref) : null;
+            const fonc = el.dataset.fonc || null;
+            const col = COLS.get(ref);
+            const span = document.createElement("span");
+            span.className = "valeur";
+            span.textContent = fonc
+              ? calculer(fonc, col, recs)
+              : col
+                ? formater(brute(rec, col), col)
+                : `[${el.dataset.label || "champ introuvable"}]`;
+            el.replaceWith(span);
+          });
+      }
+      // La première ligne d'un tableau passe dans <thead> pour se répéter à chaque page
+      function entetesRepetees(racine) {
+        racine.querySelectorAll("table").forEach((t) => {
+          if (t.querySelector("thead")) return;
+          const corps = t.querySelector("tbody");
+          const premiere = corps?.firstElementChild;
+          if (!premiere || !premiere.querySelector("th")) return;
+          const thead = document.createElement("thead");
+          thead.appendChild(premiere);
+          t.insertBefore(thead, corps);
+        });
+      }
       function fusionner(html, rec) {
         const tmp = document.createElement("div");
         tmp.innerHTML = html;
-        tmp.querySelectorAll("span[data-colref]").forEach((el) => {
-          const col = COLS.get(Number(el.dataset.colref));
-          const span = document.createElement("span");
-          span.className = "valeur";
-          span.textContent = col
-            ? formater(brute(rec, col), col)
-            : `[${el.dataset.label || "champ introuvable"}]`;
-          el.replaceWith(span);
-        });
+        remplacerBalises(tmp, rec, [rec]);
+        entetesRepetees(tmp);
         return tmp.innerHTML;
+      }
+      function fusionnerRapport(html, recs) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        const lignes = [...tmp.querySelectorAll("tr[data-repete]")];
+        lignes.forEach((tr) => {
+          const frag = document.createDocumentFragment();
+          recs.forEach((rec) => {
+            const copie = tr.cloneNode(true);
+            copie.removeAttribute("data-repete");
+            remplacerBalises(copie, rec, recs);
+            frag.appendChild(copie);
+          });
+          tr.replaceWith(frag);
+        });
+        remplacerBalises(tmp, recs[0], recs);
+        entetesRepetees(tmp);
+        return { html: tmp.innerHTML, lignesRepetees: lignes.length };
+      }
+      // Une balise hors ligne répétée n'affiche que la valeur du premier enregistrement
+      function verifierCoherence(html, recs) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        tmp.querySelectorAll("tr[data-repete]").forEach((tr) => tr.remove());
+        const refs = new Set(
+          [...tmp.querySelectorAll("span[data-colref]")]
+            .filter((el) => !el.dataset.fonc)
+            .map((el) => Number(el.dataset.colref)),
+        );
+        const ambigus = [...refs]
+          .map((r) => COLS.get(r))
+          .filter(Boolean)
+          .filter(
+            (col) =>
+              new Set(recs.map((rec) => formater(brute(rec, col), col))).size >
+              1,
+          );
+        return ambigus.map((c) => c.label);
       }
       async function copierNom(nom) {
         try {
@@ -2257,15 +2593,35 @@
           return false;
         }
       }
-      async function imprimer(recs) {
-        statut("Préparation de l'impression…");
-        try {
-          const base = await htmlModele();
-          const corps = recs
+      async function corpsDocument(recs) {
+        const base = await htmlModele();
+        if (!estRapport())
+          return recs
             .map(
               (r) => `<section class="fiche">${fusionner(base, r)}</section>`,
             )
             .join("");
+        const { html, lignesRepetees } = fusionnerRapport(base, recs);
+        if (!lignesRepetees)
+          alerte(
+            "Aucune ligne répétée : marquez une ligne de tableau avec le bouton Répéter pour lister les enregistrements.",
+            "warning",
+          );
+        else {
+          const ambigus = verifierCoherence(base, recs);
+          alerte(
+            ambigus.length
+              ? `Hors de la ligne répétée, ces champs varient d'une ligne à l'autre et n'affichent que la première valeur : ${ambigus.join(", ")}.`
+              : "",
+            "warning",
+          );
+        }
+        return `<section class="fiche">${html}</section>`;
+      }
+      async function imprimer(recs) {
+        statut("Préparation de l'impression…");
+        try {
+          const corps = await corpsDocument(recs);
           $("frame-impression")?.remove();
           const frame = document.createElement("iframe");
           frame.id = "frame-impression";
@@ -2276,10 +2632,10 @@
           document.body.appendChild(frame);
           await charge;
           await attendreRessources(frame.contentDocument);
-          const nom =
-            recs.length === 1
-              ? nomFichierCalcule(recs[0])
-              : `${(modele?.[COLS_MODELE.nom] || "documents").replace(/\s+/g, "_")}.pdf`;
+          const unique = recs.length === 1 || estRapport();
+          const nom = unique
+            ? nomFichierCalcule(recs[0])
+            : `${(modele?.[COLS_MODELE.nom] || "documents").replace(/\s+/g, "_")}.pdf`;
           const copie = await copierNom(nom);
           statut(copie ? `Nom copié : ${nom}` : "");
           frame.contentWindow.focus();
@@ -2292,10 +2648,13 @@
         }
       }
       async function rafraichirApercu() {
+        if (!enregistrements.length) return;
         const f = $("apercu");
         const charge = new Promise((r) => (f.onload = r));
         f.srcdoc = documentImpression(
-          `<section class="fiche">${fusionner(await htmlModele(), enregistrements[index])}</section>`,
+          await corpsDocument(
+            estRapport() ? enregistrements : [enregistrements[index]],
+          ),
         );
         await charge;
         await attendreRessources(f.contentDocument);
@@ -2312,13 +2671,24 @@
           ? `<i class="ri-edit-line"></i>&nbsp;Modifier`
           : `<i class="ri-eye-line"></i>&nbsp;Aperçu`;
         if (enApercu) rafraichirApercu();
-        else majOutils();
+        else {
+          majOutils();
+          $("btn-repetee").hidden = !estRapport();
+        }
       }
       $("btn-apercu").addEventListener("click", basculerApercu);
-      $("btn-imprimer").addEventListener(
-        "click",
-        () => enregistrements[index] && imprimer([enregistrements[index]]),
-      );
+      $("btn-imprimer").addEventListener("click", () => {
+        if (!enregistrements.length) return;
+        if (estRapport()) {
+          const n = enregistrements.length;
+          if (
+            n > 500 &&
+            !confirm(`Le rapport contient ${n} lignes. Continuer ?`)
+          )
+            return;
+          imprimer(enregistrements);
+        } else imprimer([enregistrements[index]]);
+      });
       $("btn-imprimer-tout").addEventListener("click", () => {
         const n = enregistrements.length;
         if (
@@ -2379,7 +2749,7 @@
 
       grist.onRecord(
         (rec) => {
-          if (!pret || !modeLie || !rec) return;
+          if (!pret || !modeLie || estRapport() || !rec) return;
           const i = enregistrements.findIndex((r) => r.id === rec.id);
           if (i >= 0 && i !== index) {
             index = i;
