@@ -679,6 +679,7 @@
       let chargement = false; // suspend la sauvegarde pendant un chargement
       let minuteur = null;
       let dernierJson = null;
+      let ecritureEnCours = false;
 
       // ════════════════════════════════════════════════════════════════
       // Utilitaires
@@ -1011,21 +1012,44 @@
         minuteur = setTimeout(() => sauvegarder(), DELAI_SAUVEGARDE);
       }
 
-      async function sauvegarder(force = false) {
-        clearTimeout(minuteur);
-        if (!editor || chargement) return;
-        const json = JSON.stringify(nettoyerBlobs(editor.getJSON()));
-        if (modele && !force && json === dernierJson) return;
+      function champsCourants() {
         const conservees = new Set([
           ...listeIds(modele?.[COLS_MODELE.images]),
           ...imagesUtilisees(),
         ]);
-        const champs = {
-          [COLS_MODELE.contenu]: json,
+        return {
+          [COLS_MODELE.contenu]: JSON.stringify(
+            nettoyerBlobs(editor.getJSON()),
+          ),
           [COLS_MODELE.images]: ["L", ...conservees],
           [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
           [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
         };
+      }
+      async function creerModele(nom, champs) {
+        const c = {
+          [COLS_MODELE.nom]: nom,
+          [COLS_MODELE.mode]: "Fiche",
+          ...champs,
+        };
+        const r = await grist.docApi.applyUserActions([
+          ["AddRecord", TABLE_MODELES, null, c],
+        ]);
+        const m = { id: r.retValues[0], ...c };
+        MODELES.push(m);
+        trierModeles();
+        return m;
+      }
+
+      async function sauvegarder(force = false) {
+        clearTimeout(minuteur);
+        if (!editor || chargement || ecritureEnCours) return;
+        const champs = champsCourants();
+        const json = champs[COLS_MODELE.contenu];
+        // Sans modèle ouvert, on n'en crée un que si l'utilisateur a réellement écrit
+        if (!modele && (!pret || json === dernierJson)) return;
+        if (modele && !force && json === dernierJson) return;
+        ecritureEnCours = true;
         etatSauvegarde("encours");
         try {
           if (modele) {
@@ -1034,16 +1058,9 @@
             ]);
             Object.assign(modele, champs);
           } else {
-            champs[COLS_MODELE.nom] = "Nouveau modèle";
-            champs[COLS_MODELE.mode] = "Fiche";
-            const r = await grist.docApi.applyUserActions([
-              ["AddRecord", TABLE_MODELES, null, champs],
-            ]);
-            modele = { id: r.retValues[0], ...champs };
-            MODELES.push(modele);
-            trierModeles();
-            afficherModeles();
+            modele = await creerModele("Nouveau modèle", champs);
             memoire.ecrire("modele", String(modele.id));
+            afficherModeles();
           }
           dernierJson = json;
           etatSauvegarde("enregistre");
@@ -1051,6 +1068,8 @@
           console.error(e);
           etatSauvegarde("erreur");
           alerte(`Enregistrement impossible : ${e.message}`);
+        } finally {
+          ecritureEnCours = false;
         }
       }
       addEventListener("pagehide", () => sauvegarder());
@@ -1127,19 +1146,12 @@
         if (nom === null) return;
         await sauvegarder();
         try {
-          const champs = {
-            [COLS_MODELE.nom]: nom.trim() || "Nouveau modèle",
-            [COLS_MODELE.mode]: "Fiche",
+          const m = await creerModele(nom.trim() || "Nouveau modèle", {
             [COLS_MODELE.contenu]: JSON.stringify(CONTENU_VIDE),
             [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
             [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
-          };
-          const r = await grist.docApi.applyUserActions([
-            ["AddRecord", TABLE_MODELES, null, champs],
-          ]);
-          MODELES.push({ id: r.retValues[0], ...champs });
-          trierModeles();
-          await ouvrirModele(r.retValues[0]);
+          });
+          await ouvrirModele(m.id);
         } catch (e) {
           alerte(`Création impossible : ${e.message}`);
         }
@@ -1153,17 +1165,11 @@
         if (nom === null) return;
         await sauvegarder(true);
         try {
-          const champs = {
-            ...modele,
-            [COLS_MODELE.nom]: nom.trim() || "Copie",
-          };
+          const champs = { ...modele };
           delete champs.id;
-          const r = await grist.docApi.applyUserActions([
-            ["AddRecord", TABLE_MODELES, null, champs],
-          ]);
-          MODELES.push({ id: r.retValues[0], ...champs });
-          trierModeles();
-          await ouvrirModele(r.retValues[0]);
+          delete champs[COLS_MODELE.nom];
+          const m = await creerModele(nom.trim() || "Copie", champs);
+          await ouvrirModele(m.id);
         } catch (e) {
           alerte(`Duplication impossible : ${e.message}`);
         }
