@@ -1,268 +1,518 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Test archivage PDF dans Grist</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css">
-<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
-<style>
-  body { background: #F6F6F6; font-family: "Marianne", arial, sans-serif; }
-  .wrap { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
-  .test { background: #fff; border: 1px solid #DDD; padding: 1rem 1.25rem; margin-bottom: 1rem; }
-  .test-tete { display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem; flex-wrap: wrap; }
-  .test-tete h2 { font-size: 1.05rem; margin: 0; }
-  .test-tete .fr-btn { margin-left: auto; }
-  .log { list-style: none !important; padding: 0 !important; margin: .5rem 0 0; font-size: .85rem; }
-  .log li { display: flex; gap: .4rem; padding: 2px 0; align-items: flex-start; }
-  .log li.ok i { color: #18753C; }
-  .log li.ko { color: #CE0500; }
-  .log li.info i { color: #0063CB; }
-  .reglages { display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-end; }
-  .champ { display: flex; flex-direction: column; gap: .2rem; }
-  .champ span { font-size: .72rem; color: #666; }
-  select, input { border: 1px solid #CCC; border-radius: 4px; padding: 5px 8px; font: inherit; font-size: .85rem; background: #fff; }
-  code { background: #EEE; padding: 0 .25rem; border-radius: 3px; font-size: .9em; word-break: break-all; }
-</style>
-</head>
-<body>
-<main class="wrap">
-  <h1 class="fr-h5">Archivage d'un PDF dans une colonne Pièces jointes</h1>
-  <div id="alerte"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test archivage PDF dans Grist</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css"
+    />
+    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+    <style>
+      body {
+        background: #f6f6f6;
+        font-family: "Marianne", arial, sans-serif;
+      }
+      .wrap {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 1.5rem;
+      }
+      .test {
+        background: #fff;
+        border: 1px solid #ddd;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+      }
+      .test-tete {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .test-tete h2 {
+        font-size: 1.05rem;
+        margin: 0;
+      }
+      .test-tete .fr-btn {
+        margin-left: auto;
+      }
+      .log {
+        list-style: none !important;
+        padding: 0 !important;
+        margin: 0.5rem 0 0;
+        font-size: 0.85rem;
+      }
+      .log li {
+        display: flex;
+        gap: 0.4rem;
+        padding: 2px 0;
+        align-items: flex-start;
+      }
+      .log li.ok i {
+        color: #18753c;
+      }
+      .log li.ko {
+        color: #ce0500;
+      }
+      .log li.info i {
+        color: #0063cb;
+      }
+      .reglages {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: flex-end;
+      }
+      .champ {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+      .champ span {
+        font-size: 0.72rem;
+        color: #666;
+      }
+      select,
+      input {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 5px 8px;
+        font: inherit;
+        font-size: 0.85rem;
+        background: #fff;
+      }
+      code {
+        background: #eee;
+        padding: 0 0.25rem;
+        border-radius: 3px;
+        font-size: 0.9em;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1 class="fr-h5">Archivage d'un PDF dans une colonne Pièces jointes</h1>
+      <div id="alerte"></div>
 
-  <section class="test">
-    <div class="test-tete"><h2>1. Cible</h2><span id="b-1" class="fr-badge fr-badge--sm">En attente</span></div>
-    <div class="reglages">
-      <label class="champ"><span>Table</span><select id="sel-table"></select></label>
-      <label class="champ"><span>Colonne Pièces jointes</span><select id="sel-col"></select></label>
-      <label class="champ"><span>Ligne</span><select id="sel-rec"></select></label>
-    </div>
-    <ul class="log" id="log-1"></ul>
-  </section>
+      <section class="test">
+        <div class="test-tete">
+          <h2>1. Cible</h2>
+          <span id="b-1" class="fr-badge fr-badge--sm">En attente</span>
+        </div>
+        <div class="reglages">
+          <label class="champ"
+            ><span>Table</span
+            ><select id="sel-table"></select
+          ></label>
+          <label class="champ"
+            ><span>Colonne Pièces jointes</span
+            ><select id="sel-col"></select
+          ></label>
+          <label class="champ"
+            ><span>Ligne</span
+            ><select id="sel-rec"></select
+          ></label>
+        </div>
+        <ul class="log" id="log-1"></ul>
+      </section>
 
-  <section class="test">
-    <div class="test-tete"><h2>2. Jeton en écriture</h2><span id="b-2" class="fr-badge fr-badge--sm">En attente</span>
-      <button class="fr-btn fr-btn--sm fr-btn--secondary" id="btn-2"><i class="ri-key-2-line"></i>&nbsp;Tester</button></div>
-    <ul class="log" id="log-2"></ul>
-  </section>
+      <section class="test">
+        <div class="test-tete">
+          <h2>2. Jeton en écriture</h2>
+          <span id="b-2" class="fr-badge fr-badge--sm">En attente</span>
+          <button class="fr-btn fr-btn--sm fr-btn--secondary" id="btn-2">
+            <i class="ri-key-2-line"></i>&nbsp;Tester
+          </button>
+        </div>
+        <ul class="log" id="log-2"></ul>
+      </section>
 
-  <section class="test">
-    <div class="test-tete"><h2>3. Téléversement d'un PDF</h2><span id="b-3" class="fr-badge fr-badge--sm">En attente</span>
-      <button class="fr-btn fr-btn--sm fr-btn--secondary" id="btn-3" disabled><i class="ri-upload-2-line"></i>&nbsp;Téléverser</button></div>
-    <ul class="log" id="log-3"></ul>
-  </section>
+      <section class="test">
+        <div class="test-tete">
+          <h2>3. Téléversement d'un PDF</h2>
+          <span id="b-3" class="fr-badge fr-badge--sm">En attente</span>
+          <button
+            class="fr-btn fr-btn--sm fr-btn--secondary"
+            id="btn-3"
+            disabled
+          >
+            <i class="ri-upload-2-line"></i>&nbsp;Téléverser
+          </button>
+        </div>
+        <ul class="log" id="log-3"></ul>
+      </section>
 
-  <section class="test">
-    <div class="test-tete"><h2>4. Écriture dans la cellule</h2><span id="b-4" class="fr-badge fr-badge--sm">En attente</span>
-      <button class="fr-btn fr-btn--sm" id="btn-4" disabled><i class="ri-attachment-2"></i>&nbsp;Rattacher à la ligne</button></div>
-    <ul class="log" id="log-4"></ul>
-  </section>
+      <section class="test">
+        <div class="test-tete">
+          <h2>4. Écriture dans la cellule</h2>
+          <span id="b-4" class="fr-badge fr-badge--sm">En attente</span>
+          <button class="fr-btn fr-btn--sm" id="btn-4" disabled>
+            <i class="ri-attachment-2"></i>&nbsp;Rattacher à la ligne
+          </button>
+        </div>
+        <ul class="log" id="log-4"></ul>
+      </section>
 
-  <section class="test">
-    <div class="test-tete"><h2>5. Relecture</h2><span id="b-5" class="fr-badge fr-badge--sm">En attente</span>
-      <button class="fr-btn fr-btn--sm fr-btn--secondary" id="btn-5" disabled><i class="ri-download-2-line"></i>&nbsp;Relire la cellule</button></div>
-    <ul class="log" id="log-5"></ul>
-  </section>
-</main>
+      <section class="test">
+        <div class="test-tete">
+          <h2>5. Relecture</h2>
+          <span id="b-5" class="fr-badge fr-badge--sm">En attente</span>
+          <button
+            class="fr-btn fr-btn--sm fr-btn--secondary"
+            id="btn-5"
+            disabled
+          >
+            <i class="ri-download-2-line"></i>&nbsp;Relire la cellule
+          </button>
+        </div>
+        <ul class="log" id="log-5"></ul>
+      </section>
+    </main>
 
-<script type="module">
-const $ = (id) => document.getElementById(id);
-const BADGES = { wait: "", run: "fr-badge--info", ok: "fr-badge--success", ko: "fr-badge--error" };
-let TABLES = [], COLS = [], RECS = [];
-let jetonEcriture = null;
-let idPJ = null;
+    <script type="module">
+      const $ = (id) => document.getElementById(id);
+      const BADGES = {
+        wait: "",
+        run: "fr-badge--info",
+        ok: "fr-badge--success",
+        ko: "fr-badge--error",
+      };
+      let TABLES = [],
+        COLS = [],
+        RECS = [];
+      let jetonEcriture = null;
+      let idPJ = null;
 
-function badge(n, etat, texte) {
-  $(`b-${n}`).className = `fr-badge fr-badge--sm ${BADGES[etat]}`;
-  $(`b-${n}`).textContent = texte;
-}
-function log(n, msg, etat = "ok") {
-  const icones = { ok: "ri-checkbox-circle-line", ko: "ri-close-circle-line", info: "ri-information-line" };
-  const li = document.createElement("li");
-  li.className = etat;
-  li.innerHTML = `<i class="${icones[etat]}"></i>`;
-  const s = document.createElement("span");
-  s.textContent = msg;
-  li.appendChild(s);
-  $(`log-${n}`).appendChild(li);
-}
-function alerte(msg) {
-  $("alerte").innerHTML = msg ? `<div class="fr-alert fr-alert--error fr-alert--sm fr-mb-2w"><p></p></div>` : "";
-  if (msg) $("alerte").querySelector("p").textContent = msg;
-}
-const lignes = (t) => t.id.map((id, i) => { const r = { id }; for (const k in t) r[k] = t[k][i]; return r; });
+      function badge(n, etat, texte) {
+        $(`b-${n}`).className = `fr-badge fr-badge--sm ${BADGES[etat]}`;
+        $(`b-${n}`).textContent = texte;
+      }
+      function log(n, msg, etat = "ok") {
+        const icones = {
+          ok: "ri-checkbox-circle-line",
+          ko: "ri-close-circle-line",
+          info: "ri-information-line",
+        };
+        const li = document.createElement("li");
+        li.className = etat;
+        li.innerHTML = `<i class="${icones[etat]}"></i>`;
+        const s = document.createElement("span");
+        s.textContent = msg;
+        li.appendChild(s);
+        $(`log-${n}`).appendChild(li);
+      }
+      function alerte(msg) {
+        $("alerte").innerHTML = msg
+          ? `<div class="fr-alert fr-alert--error fr-alert--sm fr-mb-2w"><p></p></div>`
+          : "";
+        if (msg) $("alerte").querySelector("p").textContent = msg;
+      }
+      const lignes = (t) =>
+        t.id.map((id, i) => {
+          const r = { id };
+          for (const k in t) r[k] = t[k][i];
+          return r;
+        });
 
-// ── 1. Cible : table, colonne Pièces jointes, ligne ──
-async function charger() {
-  badge(1, "run", "En cours");
-  try {
-    const [t, c] = await Promise.all([
-      grist.docApi.fetchTable("_grist_Tables"),
-      grist.docApi.fetchTable("_grist_Tables_column"),
-    ]);
-    const cols = c.id.map((ref, i) => ({ ref, parent: c.parentId[i], colId: c.colId[i], label: c.label[i] || c.colId[i], type: c.type[i] }));
-    TABLES = t.id.map((ref, i) => ({ ref, tableId: t.tableId[i], resume: t.summarySourceTable[i] }))
-      .filter((x) => !x.resume && !x.tableId.startsWith("GristHidden_"))
-      .filter((x) => cols.some((col) => col.parent === x.ref && col.type === "Attachments"))
-      .sort((a, b) => a.tableId.localeCompare(b.tableId));
-    if (!TABLES.length) throw new Error("Aucune table ne possède de colonne de type Pièces jointes.");
-    COLS = cols;
-    $("sel-table").innerHTML = TABLES.map((x) => `<option value="${x.ref}">${x.tableId}</option>`).join("");
-    log(1, `${TABLES.length} table(s) avec une colonne Pièces jointes`);
-    await majColonnes();
-    badge(1, "ok", "Prêt");
-  } catch (e) {
-    log(1, e.message, "ko");
-    badge(1, "ko", "Échec");
-    alerte(/access|permission/i.test(e.message) ? "Le widget doit avoir l'accès complet au document." : e.message);
-  }
-}
-async function majColonnes() {
-  const ref = Number($("sel-table").value);
-  const table = TABLES.find((t) => t.ref === ref);
-  const pj = COLS.filter((c) => c.parent === ref && c.type === "Attachments");
-  $("sel-col").innerHTML = pj.map((c) => `<option value="${c.colId}">${c.label}</option>`).join("");
-  const premiere = COLS.find((c) => c.parent === ref && c.colId !== "manualSort" && c.type !== "Attachments");
-  RECS = lignes(await grist.docApi.fetchTable(table.tableId));
-  $("sel-rec").innerHTML = RECS.length
-    ? RECS.map((r, i) => {
-        const v = premiere ? r[premiere.colId] : null;
-        const txt = v === null || v === undefined || v === "" ? `Ligne ${r.id}` : String(v).slice(0, 40);
-        return `<option value="${r.id}">${i + 1}. ${txt}</option>`;
-      }).join("")
-    : `<option value="">Aucune ligne</option>`;
-  log(1, `${table.tableId} : ${pj.length} colonne(s) Pièces jointes, ${RECS.length} ligne(s)`, "info");
-}
-$("sel-table").addEventListener("change", () => majColonnes().catch((e) => log(1, e.message, "ko")));
+      // ── 1. Cible : table, colonne Pièces jointes, ligne ──
+      async function charger() {
+        badge(1, "run", "En cours");
+        try {
+          const [t, c] = await Promise.all([
+            grist.docApi.fetchTable("_grist_Tables"),
+            grist.docApi.fetchTable("_grist_Tables_column"),
+          ]);
+          const cols = c.id.map((ref, i) => ({
+            ref,
+            parent: c.parentId[i],
+            colId: c.colId[i],
+            label: c.label[i] || c.colId[i],
+            type: c.type[i],
+          }));
+          TABLES = t.id
+            .map((ref, i) => ({
+              ref,
+              tableId: t.tableId[i],
+              resume: t.summarySourceTable[i],
+            }))
+            .filter((x) => !x.resume && !x.tableId.startsWith("GristHidden_"))
+            .filter((x) =>
+              cols.some(
+                (col) => col.parent === x.ref && col.type === "Attachments",
+              ),
+            )
+            .sort((a, b) => a.tableId.localeCompare(b.tableId));
+          if (!TABLES.length)
+            throw new Error(
+              "Aucune table ne possède de colonne de type Pièces jointes.",
+            );
+          COLS = cols;
+          $("sel-table").innerHTML = TABLES.map(
+            (x) => `<option value="${x.ref}">${x.tableId}</option>`,
+          ).join("");
+          log(1, `${TABLES.length} table(s) avec une colonne Pièces jointes`);
+          await majColonnes();
+          badge(1, "ok", "Prêt");
+        } catch (e) {
+          log(1, e.message, "ko");
+          badge(1, "ko", "Échec");
+          alerte(
+            /access|permission/i.test(e.message)
+              ? "Le widget doit avoir l'accès complet au document."
+              : e.message,
+          );
+        }
+      }
+      async function majColonnes() {
+        const ref = Number($("sel-table").value);
+        const table = TABLES.find((t) => t.ref === ref);
+        const pj = COLS.filter(
+          (c) => c.parent === ref && c.type === "Attachments",
+        );
+        $("sel-col").innerHTML = pj
+          .map((c) => `<option value="${c.colId}">${c.label}</option>`)
+          .join("");
+        const premiere = COLS.find(
+          (c) =>
+            c.parent === ref &&
+            c.colId !== "manualSort" &&
+            c.type !== "Attachments",
+        );
+        RECS = lignes(await grist.docApi.fetchTable(table.tableId));
+        $("sel-rec").innerHTML = RECS.length
+          ? RECS.map((r, i) => {
+              const v = premiere ? r[premiere.colId] : null;
+              const txt =
+                v === null || v === undefined || v === ""
+                  ? `Ligne ${r.id}`
+                  : String(v).slice(0, 40);
+              return `<option value="${r.id}">${i + 1}. ${txt}</option>`;
+            }).join("")
+          : `<option value="">Aucune ligne</option>`;
+        log(
+          1,
+          `${table.tableId} : ${pj.length} colonne(s) Pièces jointes, ${RECS.length} ligne(s)`,
+          "info",
+        );
+      }
+      $("sel-table").addEventListener("change", () =>
+        majColonnes().catch((e) => log(1, e.message, "ko")),
+      );
 
-// ── 2. Jeton en écriture ──
-$("btn-2").addEventListener("click", async () => {
-  badge(2, "run", "En cours");
-  $("log-2").innerHTML = "";
-  try {
-    const j = await grist.docApi.getAccessToken({ readOnly: false });
-    jetonEcriture = j;
-    log(2, `Jeton obtenu — ${j.baseUrl}`);
-    log(2, `Durée de validité : ${j.ttl ?? "non communiquée"}`, "info");
-    // Vérifie que le jeton autorise bien l'écriture
-    const r = await fetch(`${j.baseUrl}/attachments?auth=${j.token}`);
-    log(2, `Lecture de la liste des pièces jointes : HTTP ${r.status}`, r.ok ? "ok" : "ko");
-    $("btn-3").disabled = false;
-    badge(2, "ok", "Réussi");
-  } catch (e) {
-    console.error(e);
-    log(2, e.message, "ko");
-    badge(2, "ko", "Échec");
-  }
-});
+      // ── 2. Jeton en écriture ──
+      $("btn-2").addEventListener("click", async () => {
+        badge(2, "run", "En cours");
+        $("log-2").innerHTML = "";
+        try {
+          const j = await grist.docApi.getAccessToken({ readOnly: false });
+          jetonEcriture = j;
+          log(2, `Jeton obtenu — ${j.baseUrl}`);
+          log(2, `Durée de validité : ${j.ttl ?? "non communiquée"}`, "info");
+          // Vérifie que le jeton autorise bien l'écriture
+          const r = await fetch(`${j.baseUrl}/attachments?auth=${j.token}`);
+          log(
+            2,
+            `Lecture de la liste des pièces jointes : HTTP ${r.status}`,
+            r.ok ? "ok" : "ko",
+          );
+          $("btn-3").disabled = false;
+          badge(2, "ok", "Réussi");
+        } catch (e) {
+          console.error(e);
+          log(2, e.message, "ko");
+          badge(2, "ko", "Échec");
+        }
+      });
 
-// ── 3. Téléversement d'un PDF minimal ──
-function pdfDeTest() {
-  const texte = `Test d'archivage — ${new Date().toLocaleString("fr-FR")}`;
-  const flux = `BT /F1 14 Tf 60 760 Td (${texte.replace(/[()\\]/g, "")}) Tj ET`;
-  const objets = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${flux.length} >>\nstream\n${flux}\nendstream`,
-  ];
-  let pdf = "%PDF-1.4\n";
-  const offsets = [];
-  objets.forEach((o, i) => { offsets.push(pdf.length); pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; });
-  const xref = pdf.length;
-  pdf += `xref\n0 ${objets.length + 1}\n0000000000 65535 f \n`
-       + offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")
-       + `trailer\n<< /Size ${objets.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  return new Blob([pdf], { type: "application/pdf" });
-}
-$("btn-3").addEventListener("click", async () => {
-  badge(3, "run", "En cours");
-  $("log-3").innerHTML = "";
-  try {
-    const { token, baseUrl } = jetonEcriture;
-    const blob = pdfDeTest();
-    const nom = `test-archivage-${Date.now()}.pdf`;
-    log(3, `Fichier préparé : ${nom}, ${blob.size} octets`, "info");
+      // ── 3. Téléversement d'un PDF minimal ──
+      function pdfDeTest() {
+        const texte = `Test d'archivage — ${new Date().toLocaleString("fr-FR")}`;
+        const flux = `BT /F1 14 Tf 60 760 Td (${texte.replace(/[()\\]/g, "")}) Tj ET`;
+        const objets = [
+          "<< /Type /Catalog /Pages 2 0 R >>",
+          "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+          "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+          `<< /Length ${flux.length} >>\nstream\n${flux}\nendstream`,
+        ];
+        let pdf = "%PDF-1.4\n";
+        const offsets = [];
+        objets.forEach((o, i) => {
+          offsets.push(pdf.length);
+          pdf += `${i + 1} 0 obj\n${o}\nendobj\n`;
+        });
+        const xref = pdf.length;
+        pdf +=
+          `xref\n0 ${objets.length + 1}\n0000000000 65535 f \n` +
+          offsets
+            .map((o) => `${String(o).padStart(10, "0")} 00000 n \n`)
+            .join("") +
+          `trailer\n<< /Size ${objets.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+        return new Blob([pdf], { type: "application/pdf" });
+      }
+      $("btn-3").addEventListener("click", async () => {
+        badge(3, "run", "En cours");
+        $("log-3").innerHTML = "";
+        try {
+          const { token, baseUrl } = jetonEcriture;
+          const blob = pdfDeTest();
+          const nom = `test-archivage-${Date.now()}.pdf`;
+          log(3, `Fichier préparé : ${nom}, ${blob.size} octets`, "info");
 
-    const form = new FormData();
-    form.append("upload", blob, nom);
-    const r = await fetch(`${baseUrl}/attachments?auth=${token}`, { method: "POST", body: form });
-    const corps = await r.text();
-    if (!r.ok) throw new Error(`HTTP ${r.status} — ${corps.slice(0, 300)}`);
-    const ids = JSON.parse(corps);
-    idPJ = Array.isArray(ids) ? ids[0] : ids;
-    log(3, `Téléversé : identifiant de pièce jointe ${idPJ}`);
-    $("btn-4").disabled = false;
-    badge(3, "ok", "Réussi");
-  } catch (e) {
-    console.error(e);
-    log(3, e.message, "ko");
-    if (e instanceof TypeError) log(3, "Échec réseau : probable blocage CORS sur le POST", "ko");
-    badge(3, "ko", "Échec");
-  }
-});
+          const form = new FormData();
+          form.append("upload", blob, nom);
+          // Le paramètre ?auth= suffit en lecture ; en écriture, l'en-tête Authorization est requis
+          const essais = [
+            {
+              nom: "en-tête Authorization",
+              url: `${baseUrl}/attachments`,
+              init: {
+                method: "POST",
+                body: form,
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            },
+            {
+              nom: "paramètre auth",
+              url: `${baseUrl}/attachments?auth=${token}`,
+              init: { method: "POST", body: form },
+            },
+          ];
+          let r = null,
+            corps = "";
+          for (const essai of essais) {
+            try {
+              r = await fetch(essai.url, essai.init);
+              corps = await r.text();
+              log(3, `${essai.nom} : HTTP ${r.status}`, r.ok ? "ok" : "info");
+              if (r.ok) break;
+            } catch (err) {
+              log(3, `${essai.nom} : ${err.message}`, "info");
+              r = null;
+            }
+          }
+          if (!r || !r.ok)
+            throw new Error(
+              r
+                ? `HTTP ${r.status} — ${corps.slice(0, 300)}`
+                : "Les deux méthodes d'authentification ont échoué",
+            );
+          const ids = JSON.parse(corps);
+          idPJ = Array.isArray(ids) ? ids[0] : ids;
+          log(3, `Téléversé : identifiant de pièce jointe ${idPJ}`);
+          $("btn-4").disabled = false;
+          badge(3, "ok", "Réussi");
+        } catch (e) {
+          console.error(e);
+          log(3, e.message, "ko");
+          if (e instanceof TypeError)
+            log(3, "Échec réseau : probable blocage CORS sur le POST", "ko");
+          badge(3, "ko", "Échec");
+        }
+      });
 
-// ── 4. Écriture de l'identifiant dans la cellule ──
-$("btn-4").addEventListener("click", async () => {
-  badge(4, "run", "En cours");
-  $("log-4").innerHTML = "";
-  try {
-    const table = TABLES.find((t) => t.ref === Number($("sel-table").value));
-    const colId = $("sel-col").value;
-    const rowId = Number($("sel-rec").value);
-    const rec = RECS.find((r) => r.id === rowId);
-    const v = rec?.[colId];
-    const existants = Array.isArray(v) ? (v[0] === "L" ? v.slice(1) : v).filter(Number.isInteger) : [];
-    const valeur = ["L", ...existants, idPJ];
-    await grist.docApi.applyUserActions([["UpdateRecord", table.tableId, rowId, { [colId]: valeur }]]);
-    log(4, `${table.tableId}.${colId} ligne ${rowId} : ${existants.length} pièce(s) + la nouvelle`);
-    $("btn-5").disabled = false;
-    badge(4, "ok", "Réussi");
-  } catch (e) {
-    console.error(e);
-    log(4, e.message, "ko");
-    badge(4, "ko", "Échec");
-  }
-});
+      // ── 4. Écriture de l'identifiant dans la cellule ──
+      $("btn-4").addEventListener("click", async () => {
+        badge(4, "run", "En cours");
+        $("log-4").innerHTML = "";
+        try {
+          const table = TABLES.find(
+            (t) => t.ref === Number($("sel-table").value),
+          );
+          const colId = $("sel-col").value;
+          const rowId = Number($("sel-rec").value);
+          const rec = RECS.find((r) => r.id === rowId);
+          const v = rec?.[colId];
+          const existants = Array.isArray(v)
+            ? (v[0] === "L" ? v.slice(1) : v).filter(Number.isInteger)
+            : [];
+          const valeur = ["L", ...existants, idPJ];
+          await grist.docApi.applyUserActions([
+            ["UpdateRecord", table.tableId, rowId, { [colId]: valeur }],
+          ]);
+          log(
+            4,
+            `${table.tableId}.${colId} ligne ${rowId} : ${existants.length} pièce(s) + la nouvelle`,
+          );
+          $("btn-5").disabled = false;
+          badge(4, "ok", "Réussi");
+        } catch (e) {
+          console.error(e);
+          log(4, e.message, "ko");
+          badge(4, "ko", "Échec");
+        }
+      });
 
-// ── 5. Relecture ──
-$("btn-5").addEventListener("click", async () => {
-  badge(5, "run", "En cours");
-  $("log-5").innerHTML = "";
-  try {
-    const table = TABLES.find((t) => t.ref === Number($("sel-table").value));
-    const colId = $("sel-col").value;
-    const rowId = Number($("sel-rec").value);
-    RECS = lignes(await grist.docApi.fetchTable(table.tableId));
-    const v = RECS.find((r) => r.id === rowId)?.[colId];
-    const ids = Array.isArray(v) ? (v[0] === "L" ? v.slice(1) : v) : [];
-    log(5, `Cellule relue : ${ids.length} pièce(s) jointe(s) — ${ids.join(", ")}`, ids.includes(idPJ) ? "ok" : "ko");
+      // ── 5. Relecture ──
+      $("btn-5").addEventListener("click", async () => {
+        badge(5, "run", "En cours");
+        $("log-5").innerHTML = "";
+        try {
+          const table = TABLES.find(
+            (t) => t.ref === Number($("sel-table").value),
+          );
+          const colId = $("sel-col").value;
+          const rowId = Number($("sel-rec").value);
+          RECS = lignes(await grist.docApi.fetchTable(table.tableId));
+          const v = RECS.find((r) => r.id === rowId)?.[colId];
+          const ids = Array.isArray(v) ? (v[0] === "L" ? v.slice(1) : v) : [];
+          log(
+            5,
+            `Cellule relue : ${ids.length} pièce(s) jointe(s) — ${ids.join(", ")}`,
+            ids.includes(idPJ) ? "ok" : "ko",
+          );
 
-    const meta = await grist.docApi.fetchTable("_grist_Attachments");
-    const i = meta.id.indexOf(idPJ);
-    if (i >= 0) log(5, `Nom enregistré : ${meta.fileName[i]}, ${meta.fileSize[i]} octets`);
+          const meta = await grist.docApi.fetchTable("_grist_Attachments");
+          const i = meta.id.indexOf(idPJ);
+          if (i >= 0)
+            log(
+              5,
+              `Nom enregistré : ${meta.fileName[i]}, ${meta.fileSize[i]} octets`,
+            );
 
-    const { token, baseUrl } = await grist.docApi.getAccessToken({ readOnly: true });
-    const r = await fetch(`${baseUrl}/attachments/${idPJ}/download?auth=${token}`);
-    const blob = await r.blob();
-    log(5, `Téléchargement : ${blob.type}, ${blob.size} octets`, r.ok ? "ok" : "ko");
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.target = "_blank"; a.textContent = "Ouvrir le PDF archivé";
-    a.className = "fr-link fr-text--sm";
-    $("log-5").appendChild(Object.assign(document.createElement("li"), { className: "info" })).appendChild(a);
-    badge(5, "ok", "Réussi");
-  } catch (e) {
-    console.error(e);
-    log(5, e.message, "ko");
-    badge(5, "ko", "Échec");
-  }
-});
+          const { token, baseUrl } = await grist.docApi.getAccessToken({
+            readOnly: true,
+          });
+          const r = await fetch(
+            `${baseUrl}/attachments/${idPJ}/download?auth=${token}`,
+          );
+          const blob = await r.blob();
+          log(
+            5,
+            `Téléchargement : ${blob.type}, ${blob.size} octets`,
+            r.ok ? "ok" : "ko",
+          );
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.target = "_blank";
+          a.textContent = "Ouvrir le PDF archivé";
+          a.className = "fr-link fr-text--sm";
+          $("log-5")
+            .appendChild(
+              Object.assign(document.createElement("li"), {
+                className: "info",
+              }),
+            )
+            .appendChild(a);
+          badge(5, "ok", "Réussi");
+        } catch (e) {
+          console.error(e);
+          log(5, e.message, "ko");
+          badge(5, "ko", "Échec");
+        }
+      });
 
-grist.ready({ requiredAccess: "full" });
-charger();
-</script>
-</body>
+      grist.ready({ requiredAccess: "full" });
+      charger();
+    </script>
+  </body>
 </html>
