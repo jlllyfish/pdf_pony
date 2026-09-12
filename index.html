@@ -28,6 +28,9 @@
       [hidden] {
         display: none !important;
       }
+      .feuille .ProseMirror [style*="text-align"] {
+        display: block;
+      }
 
       /* ── Barres du haut ── */
       .barre {
@@ -2464,7 +2467,8 @@
   ${s} th, ${s} td { border: 1px solid #929292; padding: 1.5mm 2.5mm; text-align: left; vertical-align: top; min-width: 2em; }
   ${s} th { background: #EEEEEE; font-weight: 700; }
   ${s} td > p, ${s} th > p { margin: 0; }
-  ${s} img { max-width: 100%; height: auto; }
+  ${s} img { max-width: 100%; height: auto; display: inline-block; vertical-align: top; }
+  ${s} [data-resize-container] { display: block; }
   ${s} a { color: #000091; }`;
       }
       document.head.insertAdjacentHTML(
