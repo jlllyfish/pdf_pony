@@ -687,7 +687,10 @@
         </div>
 
         <h3>En-tête</h3>
-        <div class="ligne3">
+        <label class="bascule"
+          ><input id="mep-sans-entete" type="checkbox" />Aucun en-tête</label
+        >
+        <div class="ligne3" id="bloc-entete">
           <label class="champ"
             ><span>Gauche</span><input id="mep-eg" type="text"
           /></label>
@@ -700,7 +703,10 @@
         </div>
 
         <h3>Pied de page</h3>
-        <div class="ligne3">
+        <label class="bascule"
+          ><input id="mep-sans-pied" type="checkbox" />Aucun pied de page</label
+        >
+        <div class="ligne3" id="bloc-pied">
           <label class="champ"
             ><span>Gauche</span><input id="mep-pg" type="text"
           /></label>
@@ -805,9 +811,9 @@
         format: "a4",
         orientation: "portrait",
         police: 11,
-        marges: { haut: 20, bas: 22, gauche: 20, droite: 20 },
+        marges: { haut: 20, bas: 20, gauche: 20, droite: 20 },
         enTete: { g: "", c: "", d: "" },
-        pied: { g: "DRAAF-SRFD Occitanie", c: "", d: "Page {page}/{pages}" },
+        pied: { g: "", c: "", d: "" },
         sansPremiere: false,
       };
       const CONTENU_VIDE = {
@@ -1154,10 +1160,7 @@
           m.marges[k] = borner(brut.marges?.[k], 0, 60, MEP_DEFAUT.marges[k]);
         for (const k of ["g", "c", "d"]) {
           m.enTete[k] = String(brut.enTete?.[k] ?? "").slice(0, 120);
-          m.pied[k] = String(brut.pied?.[k] ?? MEP_DEFAUT.pied[k]).slice(
-            0,
-            120,
-          );
+          m.pied[k] = String(brut.pied?.[k] ?? "").slice(0, 120);
         }
         m.sansPremiere = !!brut.sansPremiere;
         return m;
@@ -1520,7 +1523,10 @@
         try {
           const m = await creerModele(nom.trim() || "Nouveau modèle", {
             [COLS_MODELE.contenu]: JSON.stringify(CONTENU_VIDE),
-            [COLS_MODELE.miseEnPage]: JSON.stringify(MEP_DEFAUT),
+            [COLS_MODELE.miseEnPage]: JSON.stringify({
+              ...MEP_DEFAUT,
+              pied: { g: "", c: "", d: "Page {page}/{pages}" },
+            }),
             [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
             [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
           });
