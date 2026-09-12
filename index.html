@@ -597,6 +597,7 @@
       // ════════════════════════════════════════════════════════════════
       // Configuration
       // ════════════════════════════════════════════════════════════════
+      const VERSION = "p2.3";
       const TABLE_MODELES = "Modeles_PDF";
       const COLS_MODELE = {
         nom: "Nom",
@@ -1936,6 +1937,19 @@
             ).join("")
           : `<option value="">Aucune table</option>`;
       }
+
+      // Journalise toute écriture, avec la pile d'appel pour les créations
+      const _apply = grist.docApi.applyUserActions.bind(grist.docApi);
+      grist.docApi.applyUserActions = (actions, ...reste) => {
+        for (const a of actions) {
+          if (a[0] === "AddRecord" && a[1] === TABLE_MODELES)
+            console.trace("[publipostage] création d'une ligne Modeles_PDF");
+          else console.log("[publipostage]", a[0], a[1], a[2]);
+        }
+        return _apply(actions, ...reste);
+      };
+      console.log(`[publipostage] version ${VERSION} chargée`);
+      $("etat-sauvegarde").title = `Version ${VERSION}`;
 
       grist.ready({ requiredAccess: "full" });
 
