@@ -28,9 +28,6 @@
       [hidden] {
         display: none !important;
       }
-      .feuille .ProseMirror [style*="text-align"] {
-        display: block;
-      }
 
       /* ── Barres du haut ── */
       .barre {
@@ -2109,6 +2106,11 @@
                 parseHTML: (el) => Number(el.getAttribute("data-att")) || null,
                 renderHTML: (a) => (a.att ? { "data-att": a.att } : {}),
               },
+              align: {
+                default: null,
+                parseHTML: (el) => el.getAttribute("data-align"),
+                renderHTML: (a) => (a.align ? { "data-align": a.align } : {}),
+              },
             };
           },
         }).configure({
@@ -2219,7 +2221,20 @@
           const a = ACTIF[b.dataset.cmd];
           b.classList.toggle("actif", !!a && editor.isActive(...a));
           if (b.hasAttribute("data-table")) b.disabled = !dansTableau;
+          else if (b.dataset.cmd in ALIGNEMENTS) b.disabled = false;
         });
+        if (editor.isActive("image")) {
+          const a = editor.getAttributes("image").align || "left";
+          for (const [cmd, val] of Object.entries(ALIGNEMENTS)) {
+            const bouton = document.querySelector(
+              `#outils [data-cmd="${cmd}"]`,
+            );
+            if (bouton) {
+              bouton.classList.toggle("actif", val === a);
+              bouton.disabled = val === null;
+            }
+          }
+        }
         const ligne = positionLigne();
         $("btn-repetee").disabled = !ligne;
         $("btn-repetee").classList.toggle("actif", !!ligne?.node.attrs.repete);
@@ -2231,10 +2246,24 @@
       $("outils").addEventListener("mousedown", (e) => {
         if (e.target.closest("button")) e.preventDefault();
       });
+      const ALIGNEMENTS = {
+        gauche: "left",
+        centre: "center",
+        droite: "right",
+        justifie: null,
+      };
       $("outils").addEventListener("click", (e) => {
         const b = e.target.closest("[data-cmd]");
-        if (b && editor && !b.disabled)
-          CMD[b.dataset.cmd](editor.chain().focus()).run();
+        if (!b || !editor || b.disabled) return;
+        // Une image sélectionnée s'aligne par son propre attribut
+        const cmd = b.dataset.cmd;
+        if (cmd in ALIGNEMENTS && editor.isActive("image")) {
+          const align = ALIGNEMENTS[cmd];
+          if (align !== null)
+            editor.chain().focus().updateAttributes("image", { align }).run();
+          return;
+        }
+        CMD[cmd](editor.chain().focus()).run();
       });
       $("sel-style").addEventListener("change", (e) => {
         const v = e.target.value,
@@ -2467,8 +2496,11 @@
   ${s} th, ${s} td { border: 1px solid #929292; padding: 1.5mm 2.5mm; text-align: left; vertical-align: top; min-width: 2em; }
   ${s} th { background: #EEEEEE; font-weight: 700; }
   ${s} td > p, ${s} th > p { margin: 0; }
-  ${s} img { max-width: 100%; height: auto; display: inline-block; vertical-align: top; }
-  ${s} [data-resize-container] { display: block; }
+  ${s} img { max-width: 100%; height: auto; display: block; }
+  ${s} img[data-align="center"] { margin-left: auto; margin-right: auto; }
+  ${s} img[data-align="right"] { margin-left: auto; margin-right: 0; }
+  ${s} [data-resize-container]:has(img[data-align="center"]) { margin-left: auto; margin-right: auto; width: fit-content; }
+  ${s} [data-resize-container]:has(img[data-align="right"]) { margin-left: auto; margin-right: 0; width: fit-content; }
   ${s} a { color: #000091; }`;
       }
       document.head.insertAdjacentHTML(
