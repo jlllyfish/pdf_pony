@@ -709,6 +709,12 @@
           <input id="mep-police" type="number" min="7" max="16" step="0.5"
         /></label>
 
+        <h3>Navigation</h3>
+        <label class="champ"
+          ><span>Colonne identifiant les enregistrements</span>
+          <select id="mep-col-libelle"></select
+        ></label>
+
         <h3>Marges (mm)</h3>
         <div class="ligne2">
           <label class="champ"
@@ -899,6 +905,7 @@
       let mep = structuredClone(MEP_DEFAUT);
       let modeDoc = "Fiche";
       let modeleNomFichier = "";
+      let colLibelle = null;
       let tableCourante = null;
       let tableLiee = null;
       let modeLie = false;
@@ -1189,9 +1196,18 @@
         return String(v);
       }
       function libelleEnregistrement(rec, i) {
-        const col = COLONNES[0];
+        const col = COLS.get(colLibelle) || COLONNES[0];
         const txt = col ? formater(brute(rec, col), col) : "";
         return `${i + 1}. ${txt || `Ligne ${rec.id}`}`.slice(0, 80);
+      }
+      function remplirColLibelle() {
+        $("mep-col-libelle").innerHTML = COLONNES.length
+          ? COLONNES.map(
+              (c) => `<option value="${c.ref}">${esc(c.label)}</option>`,
+            ).join("")
+          : `<option value="">Aucune colonne</option>`;
+        if (!COLS.has(colLibelle)) colLibelle = COLONNES[0]?.ref ?? null;
+        $("mep-col-libelle").value = colLibelle ?? "";
       }
       function nombreDe(rec, col) {
         const v = rec?.[col.colId];
@@ -1248,6 +1264,9 @@
           m.pied[k] = String(brut.pied?.[k] ?? "").slice(0, 120);
         }
         m.sansPremiere = !!brut.sansPremiere;
+        m.colLibelle = Number.isInteger(brut.colLibelle)
+          ? brut.colLibelle
+          : null;
         return m;
       }
       function remplirFormulaireMep() {
@@ -1267,6 +1286,8 @@
         $("mep-nom-fichier").value = modeleNomFichier;
         $("mep-sans-entete").checked = !Object.values(mep.enTete).some(Boolean);
         $("mep-sans-pied").checked = !Object.values(mep.pied).some(Boolean);
+        colLibelle = mep.colLibelle;
+        remplirColLibelle();
         majBlocsMep();
         majApercuNom();
       }
@@ -1310,8 +1331,11 @@
                 d: $("mep-pd").value,
               },
           sansPremiere: $("mep-sans-premiere").checked,
+          colLibelle: Number($("mep-col-libelle").value) || null,
         });
+        colLibelle = mep.colLibelle;
         majBlocsMep();
+        majNav();
         modeleNomFichier = $("mep-nom-fichier").value.slice(0, 200);
         appliquerMepEcran();
         if (modeAvant !== modeDoc) appliquerMode();
@@ -1405,6 +1429,7 @@
         "mep-nom-fichier",
         "mep-sans-entete",
         "mep-sans-pied",
+        "mep-col-libelle",
       ].forEach((id) => $(id).addEventListener("change", lireFormulaireMep));
       $("mep-nom-fichier").addEventListener("input", () => {
         modeleNomFichier = $("mep-nom-fichier").value;
@@ -2340,6 +2365,7 @@
         COLS = new Map(COLONNES.map((c) => [c.ref, c]));
         afficherChamps();
         afficherCalculs();
+        remplirColLibelle();
         rafraichirTags();
         await chargerEnregistrements();
       }
