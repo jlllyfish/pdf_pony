@@ -1179,7 +1179,22 @@
         $("mep-pd").value = mep.pied.d;
         $("mep-sans-premiere").checked = mep.sansPremiere;
         $("mep-nom-fichier").value = modeleNomFichier;
+        $("mep-sans-entete").checked = !Object.values(mep.enTete).some(Boolean);
+        $("mep-sans-pied").checked = !Object.values(mep.pied).some(Boolean);
+        majBlocsMep();
         majApercuNom();
+      }
+      function majBlocsMep() {
+        for (const [c, b] of [
+          ["mep-sans-entete", "bloc-entete"],
+          ["mep-sans-pied", "bloc-pied"],
+        ]) {
+          const off = $(c).checked;
+          $(b).style.opacity = off ? ".4" : "1";
+          $(b)
+            .querySelectorAll("input")
+            .forEach((i) => (i.disabled = off));
+        }
       }
       function lireFormulaireMep() {
         mep = normaliserMep({
@@ -1192,18 +1207,23 @@
             gauche: $("mep-gauche").value,
             droite: $("mep-droite").value,
           },
-          enTete: {
-            g: $("mep-eg").value,
-            c: $("mep-ec").value,
-            d: $("mep-ed").value,
-          },
-          pied: {
-            g: $("mep-pg").value,
-            c: $("mep-pc").value,
-            d: $("mep-pd").value,
-          },
+          enTete: $("mep-sans-entete").checked
+            ? {}
+            : {
+                g: $("mep-eg").value,
+                c: $("mep-ec").value,
+                d: $("mep-ed").value,
+              },
+          pied: $("mep-sans-pied").checked
+            ? {}
+            : {
+                g: $("mep-pg").value,
+                c: $("mep-pc").value,
+                d: $("mep-pd").value,
+              },
           sansPremiere: $("mep-sans-premiere").checked,
         });
+        majBlocsMep();
         modeleNomFichier = $("mep-nom-fichier").value.slice(0, 200);
         appliquerMepEcran();
         majApercuNom();
@@ -1295,6 +1315,8 @@
         "mep-pd",
         "mep-sans-premiere",
         "mep-nom-fichier",
+        "mep-sans-entete",
+        "mep-sans-pied",
       ].forEach((id) => $(id).addEventListener("change", lireFormulaireMep));
       $("mep-nom-fichier").addEventListener("input", () => {
         modeleNomFichier = $("mep-nom-fichier").value;
