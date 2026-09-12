@@ -1041,27 +1041,21 @@
         return m;
       }
 
+      // N'écrit QUE dans un modèle déjà ouvert : aucune création implicite.
       async function sauvegarder(force = false) {
         clearTimeout(minuteur);
-        if (!editor || chargement || ecritureEnCours) return;
+        if (!editor || !modele || !pret || chargement || ecritureEnCours)
+          return;
         const champs = champsCourants();
         const json = champs[COLS_MODELE.contenu];
-        // Sans modèle ouvert, on n'en crée un que si l'utilisateur a réellement écrit
-        if (!modele && (!pret || json === dernierJson)) return;
-        if (modele && !force && json === dernierJson) return;
+        if (!force && json === dernierJson) return;
         ecritureEnCours = true;
         etatSauvegarde("encours");
         try {
-          if (modele) {
-            await grist.docApi.applyUserActions([
-              ["UpdateRecord", TABLE_MODELES, modele.id, champs],
-            ]);
-            Object.assign(modele, champs);
-          } else {
-            modele = await creerModele("Nouveau modèle", champs);
-            memoire.ecrire("modele", String(modele.id));
-            afficherModeles();
-          }
+          await grist.docApi.applyUserActions([
+            ["UpdateRecord", TABLE_MODELES, modele.id, champs],
+          ]);
+          Object.assign(modele, champs);
           dernierJson = json;
           etatSauvegarde("enregistre");
         } catch (e) {
@@ -1102,6 +1096,12 @@
         }
         afficherModeles();
         etatSauvegarde(modele ? "enregistre" : "");
+        editor.setEditable(!!modele);
+        $("feuille").style.opacity = modele ? "1" : ".5";
+        alerte(
+          modele ? "" : "Aucun modèle ouvert : cliquez sur + pour en créer un.",
+          "info",
+        );
         if (modele) memoire.ecrire("modele", String(modele.id));
         restaurerImages();
         majOutils();
@@ -1204,12 +1204,13 @@
           return;
         clearTimeout(minuteur);
         const id = modele.id;
+        modele = null;
         try {
           await grist.docApi.applyUserActions([
             ["RemoveRecord", TABLE_MODELES, id],
           ]);
           MODELES = MODELES.filter((m) => m.id !== id);
-          modele = null;
+          memoire.ecrire("modele", "");
           await ouvrirModele(MODELES[0]?.id ?? null);
         } catch (e) {
           alerte(`Suppression impossible : ${e.message}`);
