@@ -1,0 +1,3895 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Publipostage PDF – Widget Grist</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css"
+    />
+    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.20/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="marianne.js"></script>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        background: #f6f6f6;
+        overflow: hidden;
+      }
+      [hidden] {
+        display: none !important;
+      }
+
+      /* ── Barres du haut ── */
+      .barre {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 1rem;
+        background: #fff;
+        flex-wrap: wrap;
+      }
+      .barre + .barre {
+        border-top: 1px solid #eee;
+      }
+      .barre:last-of-type {
+        border-bottom: 1px solid #ddd;
+      }
+      .barre label {
+        font-size: 0.8rem;
+        color: #3a3a3a;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0;
+      }
+      .sel {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font: inherit;
+        font-size: 0.85rem;
+        background: #fff;
+        color: #161616;
+        max-width: 260px;
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+      .nav .sel {
+        width: 220px;
+      }
+      #compteur {
+        font-size: 0.8rem;
+        color: #3a3a3a;
+        min-width: 48px;
+        text-align: center;
+      }
+      .actions {
+        margin-left: auto;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      #statut,
+      #etat-sauvegarde {
+        font-size: 0.8rem;
+        color: #666;
+      }
+      #etat-sauvegarde i {
+        font-size: 0.9em;
+        margin-right: 0.2rem;
+      }
+
+      /* ── Corps ── */
+      .corps {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+      }
+      .panneau {
+        width: 250px;
+        flex-shrink: 0;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        padding: 0.75rem;
+        gap: 0.5rem;
+        min-height: 0;
+      }
+      .panneau-gauche {
+        border-right: 1px solid #ddd;
+        overflow: auto;
+      }
+      .panneau-droit {
+        width: 290px;
+        border-left: 1px solid #ddd;
+        overflow: auto;
+      }
+      .panneau h2 {
+        font-size: 0.9rem;
+        margin: 0;
+      }
+      .panneau h3 {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #000091;
+        margin: 0.5rem 0 0;
+      }
+      .panneau .aide {
+        font-size: 0.75rem;
+        color: #666;
+        margin: 0;
+      }
+      .panneau input[type="text"],
+      .panneau input[type="number"],
+      .panneau input[type="search"],
+      .panneau select {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 5px 8px;
+        font: inherit;
+        font-size: 0.85rem;
+        background: #fff;
+        color: #161616;
+        width: 100%;
+      }
+      .ligne2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+      }
+      .ligne3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0.35rem;
+      }
+      .champ {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+      .champ > span {
+        font-size: 0.72rem;
+        color: #666;
+      }
+      .bascule {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.8rem;
+        color: #3a3a3a;
+      }
+      .bascule input {
+        width: auto;
+      }
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        align-content: flex-start;
+      }
+      .tags .fr-tag {
+        cursor: pointer;
+      }
+      .tags .fr-tag i {
+        margin-right: 0.25rem;
+        font-size: 0.85em;
+      }
+      .tag-agg {
+        background: #fee7fc !important;
+        color: #6e445a !important;
+      }
+      .zone {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      #apercu-nom {
+        font-size: 0.75rem;
+        color: #000091;
+        word-break: break-all;
+        background: #f6f6f6;
+        padding: 0.3rem 0.4rem;
+        border-radius: 4px;
+      }
+
+      /* ── Barre d'outils de l'éditeur ── */
+      .outils {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        align-items: center;
+        padding: 0.4rem 0.75rem;
+        background: #fff;
+        border-bottom: 1px solid #ddd;
+      }
+      .tb {
+        border: none !important;
+        background: transparent !important;
+        width: 30px;
+        height: 30px;
+        border-radius: 4px !important;
+        color: #161616 !important;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 17px !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+      }
+      .tb:hover:not(:disabled) {
+        background: #eee !important;
+      }
+      .tb.actif {
+        background: #e3e3fd !important;
+        color: #000091 !important;
+      }
+      .tb:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      .sep {
+        width: 1px;
+        height: 20px;
+        background: #ddd;
+        margin: 0 4px;
+      }
+      #sel-style {
+        width: 120px;
+      }
+
+      /* ── Feuille ── */
+      .defil {
+        flex: 1;
+        overflow: auto;
+        padding: 24px;
+      }
+      .feuille {
+        margin: 0 auto;
+        background: #fff;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+        box-sizing: border-box;
+      }
+      .feuille .ProseMirror {
+        outline: none;
+      }
+      #apercu {
+        display: block;
+        margin: 0 auto;
+        border: 0;
+        background: #fff;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+      }
+      .feuille .selectedCell {
+        background: #e3e3fd !important;
+      }
+      .feuille .ProseMirror-selectednode {
+        outline: 2px solid #000091;
+      }
+      .feuille .saut-page {
+        position: relative;
+        height: 0;
+        border-top: 2px dashed #929292;
+        margin: 8mm 0;
+      }
+      .feuille .saut-page::after {
+        content: "Saut de page";
+        position: absolute;
+        top: -0.75em;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #fff;
+        padding: 0 0.5rem;
+        font-size: 0.75rem;
+        color: #666;
+      }
+      .feuille [data-resize-handle] {
+        width: 10px;
+        height: 10px;
+        background: #000091;
+        border: 2px solid #fff;
+        border-radius: 2px;
+        z-index: 2;
+      }
+      .feuille [data-resize-container]:not(:hover) [data-resize-handle] {
+        opacity: 0;
+      }
+      .feuille .ProseMirror a {
+        cursor: pointer;
+      }
+      .feuille tr[data-repete] > * {
+        background: #f7f7ff;
+      }
+      .feuille tr[data-repete] > *:first-child {
+        box-shadow: inset 3px 0 0 #000091;
+      }
+      .feuille .bloc-cond {
+        position: relative;
+        border-left: 3px solid #6e445a;
+        background: #fff8fe;
+        padding: 2mm 3mm 2mm 4mm;
+        margin: 0 0 3mm;
+      }
+      .feuille .bloc-cond::before {
+        content: attr(data-resume);
+        position: absolute;
+        top: -0.65em;
+        left: 3mm;
+        background: #fff8fe;
+        padding: 0 0.35rem;
+        font-size: 0.7rem;
+        color: #6e445a;
+        white-space: nowrap;
+      }
+      .feuille .bloc-cond > :last-child {
+        margin-bottom: 0;
+      }
+
+      /* ── Balises ── */
+      .balise {
+        display: inline-block;
+        background: #e3e3fd;
+        color: #000091;
+        border-radius: 1rem;
+        padding: 0 0.55rem;
+        font-size: 0.85em;
+        line-height: 1.5;
+        font-weight: 500;
+        cursor: grab;
+        white-space: nowrap;
+        user-select: none;
+      }
+      .balise-agg {
+        background: #fee7fc;
+        color: #6e445a;
+      }
+      .balise-orpheline {
+        background: #ffe9e9;
+        color: #ce0500;
+      }
+      .balise em {
+        font-style: normal;
+        opacity: 0.65;
+        font-size: 0.9em;
+      }
+
+      /* ── Menus flottants ── */
+      .pop {
+        position: fixed;
+        z-index: 1000;
+        background: #fff;
+        border: 1px solid #ddd;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        padding: 0.5rem;
+        border-radius: 4px;
+      }
+      .pop-emoji {
+        display: grid;
+        grid-template-columns: repeat(8, 34px);
+        gap: 2px;
+      }
+      .pop-emoji button {
+        font-size: 20px;
+        width: 34px;
+        height: 34px;
+        border: 0 !important;
+        background: transparent !important;
+        cursor: pointer;
+        padding: 0 !important;
+        border-radius: 4px;
+      }
+      .pop-emoji button:hover {
+        background: #eee !important;
+      }
+      .pop-lien {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      .pop-lien input {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 5px 8px;
+        font: inherit;
+        font-size: 0.85rem;
+        width: 280px;
+      }
+      .pop-reglages {
+        width: 280px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .pop-reglages .titre {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #000091;
+      }
+      .pop-reglages label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        font-size: 0.72rem;
+        color: #666;
+      }
+      .pop-reglages select,
+      .pop-reglages input {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 5px 8px;
+        font: inherit;
+        font-size: 0.85rem;
+        background: #fff;
+        color: #161616;
+        width: 100%;
+      }
+      .pop-reglages .duo {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+      }
+      .galerie {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        max-width: 380px;
+      }
+      .galerie button {
+        border: 1px solid #ddd !important;
+        background: repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 0 0/12px
+          12px !important;
+        padding: 2px !important;
+        cursor: pointer;
+      }
+      .galerie button:hover {
+        border-color: #000091 !important;
+      }
+      .galerie img {
+        height: 64px;
+        display: block;
+      }
+      .pop .vide {
+        font-size: 0.8rem;
+        color: #666;
+        margin: 0;
+        max-width: 260px;
+      }
+      .suggest {
+        padding: 0.25rem;
+        min-width: 260px;
+        max-height: 280px;
+        overflow: auto;
+      }
+      .suggest-item {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        width: 100%;
+        text-align: left;
+        border: 0 !important;
+        background: transparent !important;
+        padding: 0.35rem 0.5rem !important;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: #161616;
+        border-radius: 4px;
+      }
+      .suggest-item.actif,
+      .suggest-item:hover {
+        background: #e3e3fd !important;
+        color: #000091;
+      }
+      .suggest-item small {
+        margin-left: auto;
+        color: #666;
+        font-size: 0.7rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="barre">
+      <label
+        >Modèle
+        <select id="sel-modele" class="sel"></select
+      ></label>
+      <button class="tb" id="btn-nouveau" title="Nouveau modèle">
+        <i class="ri-add-line"></i>
+      </button>
+      <button class="tb" id="btn-dupliquer" title="Dupliquer le modèle">
+        <i class="ri-file-copy-line"></i>
+      </button>
+      <button class="tb" id="btn-renommer" title="Renommer le modèle">
+        <i class="ri-edit-line"></i>
+      </button>
+      <button class="tb" id="btn-supprimer" title="Supprimer le modèle">
+        <i class="ri-delete-bin-line"></i>
+      </button>
+      <span id="badge-mode-doc" class="fr-badge fr-badge--sm"></span>
+      <span id="etat-sauvegarde"></span>
+    </header>
+
+    <header class="barre">
+      <label
+        >Table source
+        <select id="sel-table" class="sel"></select
+      ></label>
+      <span id="badge-mode" class="fr-badge fr-badge--sm"></span>
+      <div class="nav" id="bloc-nav">
+        <button class="tb" id="btn-prec" title="Enregistrement précédent">
+          <i class="ri-arrow-left-s-line"></i>
+        </button>
+        <select
+          id="sel-rec"
+          class="sel"
+          title="Enregistrement utilisé pour l'aperçu et l'impression"
+        ></select>
+        <button class="tb" id="btn-suiv" title="Enregistrement suivant">
+          <i class="ri-arrow-right-s-line"></i>
+        </button>
+        <span id="compteur"></span>
+      </div>
+      <div class="actions">
+        <span id="statut"></span>
+        <button
+          class="tb"
+          id="btn-actualiser"
+          title="Recharger modèles, tables, données et images"
+        >
+          <i class="ri-refresh-line"></i>
+        </button>
+        <button class="tb" id="btn-mise-en-page" title="Mise en page">
+          <i class="ri-layout-3-line"></i>
+        </button>
+        <button class="fr-btn fr-btn--sm fr-btn--secondary" id="btn-apercu">
+          <i class="ri-eye-line"></i>&nbsp;Aperçu
+        </button>
+        <button class="fr-btn fr-btn--sm" id="btn-pdf">
+          <i class="ri-file-download-line"></i>&nbsp;Télécharger le PDF
+        </button>
+        <button class="fr-btn fr-btn--sm fr-btn--tertiary" id="btn-pdf-lot">
+          <i class="ri-folder-zip-line"></i>&nbsp;Lot
+        </button>
+        <button
+          class="tb"
+          id="btn-imprimer"
+          title="Imprimer via le navigateur (ancien moteur)"
+        >
+          <i class="ri-printer-line"></i>
+        </button>
+        <button
+          class="tb"
+          id="btn-imprimer-tout"
+          title="Tout imprimer via le navigateur (ancien moteur)"
+        >
+          <i class="ri-stack-line"></i>
+        </button>
+      </div>
+    </header>
+    <div id="alerte"></div>
+
+    <div class="corps">
+      <aside class="panneau panneau-gauche">
+        <h2>Champs</h2>
+        <input
+          id="filtre-champs"
+          type="search"
+          placeholder="Filtrer les champs"
+        />
+        <p class="aide">
+          Cliquez sur un champ pour l'insérer, ou tapez @ dans le texte. Cliquez
+          sur une balise du document pour régler son format.
+        </p>
+        <div id="liste-champs" class="tags"></div>
+
+        <div id="bloc-rapport" hidden>
+          <h3>Calculs</h3>
+          <label class="champ"
+            ><span>Fonction appliquée aux colonnes</span>
+            <select id="sel-fonction">
+              <option value="somme">Somme</option>
+              <option value="moyenne">Moyenne</option>
+              <option value="min">Minimum</option>
+              <option value="max">Maximum</option>
+            </select></label
+          >
+          <div id="liste-calculs" class="tags" style="margin-top: 0.5rem"></div>
+          <p class="aide">
+            Les calculs portent sur toutes les lignes affichées. Placez-les hors
+            de la ligne répétée, par exemple sur une ligne de total.
+          </p>
+        </div>
+      </aside>
+
+      <section class="zone">
+        <div class="outils" id="outils">
+          <button class="tb" data-cmd="annuler" title="Annuler (Ctrl+Z)">
+            <i class="ri-arrow-go-back-line"></i>
+          </button>
+          <button class="tb" data-cmd="retablir" title="Rétablir (Ctrl+Y)">
+            <i class="ri-arrow-go-forward-line"></i>
+          </button>
+          <span class="sep"></span>
+          <select id="sel-style" class="sel" title="Style du paragraphe">
+            <option value="p">Paragraphe</option>
+            <option value="1">Titre 1</option>
+            <option value="2">Titre 2</option>
+            <option value="3">Titre 3</option>
+          </select>
+          <span class="sep"></span>
+          <button class="tb" data-cmd="gras" title="Gras (Ctrl+B)">
+            <i class="ri-bold"></i>
+          </button>
+          <button class="tb" data-cmd="italique" title="Italique (Ctrl+I)">
+            <i class="ri-italic"></i>
+          </button>
+          <button class="tb" data-cmd="souligne" title="Souligné (Ctrl+U)">
+            <i class="ri-underline"></i>
+          </button>
+          <button class="tb" data-cmd="barre" title="Barré">
+            <i class="ri-strikethrough"></i>
+          </button>
+          <span class="sep"></span>
+          <button class="tb" data-cmd="gauche" title="Aligner à gauche">
+            <i class="ri-align-left"></i>
+          </button>
+          <button class="tb" data-cmd="centre" title="Centrer">
+            <i class="ri-align-center"></i>
+          </button>
+          <button class="tb" data-cmd="droite" title="Aligner à droite">
+            <i class="ri-align-right"></i>
+          </button>
+          <button class="tb" data-cmd="justifie" title="Justifier">
+            <i class="ri-align-justify"></i>
+          </button>
+          <span class="sep"></span>
+          <button class="tb" data-cmd="puces" title="Liste à puces">
+            <i class="ri-list-unordered"></i>
+          </button>
+          <button class="tb" data-cmd="numeros" title="Liste numérotée">
+            <i class="ri-list-ordered"></i>
+          </button>
+          <span class="sep"></span>
+          <button class="tb" data-cmd="tableau" title="Insérer un tableau">
+            <i class="ri-table-line"></i>
+          </button>
+          <button
+            class="tb"
+            data-cmd="ligne"
+            data-table
+            title="Ajouter une ligne"
+          >
+            <i class="ri-insert-row-bottom"></i>
+          </button>
+          <button
+            class="tb"
+            data-cmd="colonne"
+            data-table
+            title="Ajouter une colonne"
+          >
+            <i class="ri-insert-column-right"></i>
+          </button>
+          <button
+            class="tb"
+            data-cmd="supprLigne"
+            data-table
+            title="Supprimer la ligne"
+          >
+            <i class="ri-delete-row"></i>
+          </button>
+          <button
+            class="tb"
+            data-cmd="supprColonne"
+            data-table
+            title="Supprimer la colonne"
+          >
+            <i class="ri-delete-column"></i>
+          </button>
+          <button
+            class="tb"
+            data-cmd="supprTableau"
+            data-table
+            title="Supprimer le tableau"
+          >
+            <i class="ri-delete-bin-line"></i>
+          </button>
+          <button
+            class="tb"
+            id="btn-repetee"
+            data-table
+            title="Répéter cette ligne pour chaque enregistrement"
+            hidden
+          >
+            <i class="ri-repeat-line"></i>
+          </button>
+          <span class="sep"></span>
+          <button class="tb" id="btn-condition" title="Bloc conditionnel">
+            <i class="ri-git-branch-line"></i>
+          </button>
+          <button class="tb" id="btn-lien" title="Insérer ou modifier un lien">
+            <i class="ri-link"></i>
+          </button>
+          <button class="tb" id="btn-images" title="Insérer une image">
+            <i class="ri-image-line"></i>
+          </button>
+          <button class="tb" id="btn-emoji" title="Insérer un emoji">
+            <i class="ri-emotion-line"></i>
+          </button>
+          <button class="tb" data-cmd="saut" title="Saut de page">
+            <i class="ri-page-separator"></i>
+          </button>
+          <button
+            class="tb"
+            data-cmd="effacer"
+            title="Effacer la mise en forme"
+          >
+            <i class="ri-format-clear"></i>
+          </button>
+        </div>
+        <div class="defil">
+          <div class="feuille" id="feuille"><div id="editeur"></div></div>
+          <iframe id="apercu" title="Aperçu avec les données" hidden></iframe>
+        </div>
+      </section>
+
+      <aside class="panneau panneau-droit" id="panneau-mep" hidden>
+        <h2>Mise en page</h2>
+
+        <label class="champ"
+          ><span>Type de document</span>
+          <select id="mep-mode">
+            <option value="Fiche">
+              Fiche — un document par enregistrement
+            </option>
+            <option value="Rapport">
+              Rapport — un document listant les enregistrements
+            </option>
+          </select></label
+        >
+
+        <h3>Papier</h3>
+        <div class="ligne2">
+          <label class="champ"
+            ><span>Format</span>
+            <select id="mep-format">
+              <option value="a4">A4</option>
+              <option value="a5">A5</option>
+              <option value="letter">Letter</option>
+            </select></label
+          >
+          <label class="champ"
+            ><span>Orientation</span>
+            <select id="mep-orientation">
+              <option value="portrait">Portrait</option>
+              <option value="paysage">Paysage</option>
+            </select></label
+          >
+        </div>
+        <label class="champ"
+          ><span>Taille du texte (pt)</span>
+          <input id="mep-police" type="number" min="7" max="16" step="0.5"
+        /></label>
+
+        <h3>Navigation</h3>
+        <label class="champ"
+          ><span>Colonne identifiant les enregistrements</span>
+          <select id="mep-col-libelle"></select
+        ></label>
+
+        <h3>Marges (mm)</h3>
+        <div class="ligne2">
+          <label class="champ"
+            ><span>Haut</span
+            ><input id="mep-haut" type="number" min="0" max="60"
+          /></label>
+          <label class="champ"
+            ><span>Bas</span><input id="mep-bas" type="number" min="0" max="60"
+          /></label>
+          <label class="champ"
+            ><span>Gauche</span
+            ><input id="mep-gauche" type="number" min="0" max="60"
+          /></label>
+          <label class="champ"
+            ><span>Droite</span
+            ><input id="mep-droite" type="number" min="0" max="60"
+          /></label>
+        </div>
+
+        <h3>En-tête</h3>
+        <label class="bascule"
+          ><input id="mep-sans-entete" type="checkbox" />Aucun en-tête</label
+        >
+        <div class="ligne3" id="bloc-entete">
+          <label class="champ"
+            ><span>Gauche</span><input id="mep-eg" type="text"
+          /></label>
+          <label class="champ"
+            ><span>Centre</span><input id="mep-ec" type="text"
+          /></label>
+          <label class="champ"
+            ><span>Droite</span><input id="mep-ed" type="text"
+          /></label>
+        </div>
+
+        <h3>Pied de page</h3>
+        <label class="bascule"
+          ><input id="mep-sans-pied" type="checkbox" />Aucun pied de page</label
+        >
+        <div class="ligne3" id="bloc-pied">
+          <label class="champ"
+            ><span>Gauche</span><input id="mep-pg" type="text"
+          /></label>
+          <label class="champ"
+            ><span>Centre</span><input id="mep-pc" type="text"
+          /></label>
+          <label class="champ"
+            ><span>Droite</span><input id="mep-pd" type="text"
+          /></label>
+        </div>
+        <label class="bascule"
+          ><input id="mep-sans-premiere" type="checkbox" />Masquer sur la
+          première page</label
+        >
+        <p class="aide">
+          Codes disponibles : {page}, {pages}, {date}, {modele}. Les champs
+          Grist ne sont pas disponibles ici, car l'en-tête est identique sur
+          toutes les pages.
+        </p>
+
+        <h3>Nom de fichier</h3>
+        <input id="mep-nom-fichier" type="text" placeholder="{modele}-{Nom}" />
+        <div id="apercu-nom"></div>
+        <p class="aide">
+          Entre accolades : un identifiant de colonne, ou {date} et {modele}. Le
+          navigateur ne peut pas nommer le PDF tout seul : le nom est copié dans
+          le presse-papiers à l'impression, il suffit de le coller.
+        </p>
+
+        <button class="fr-btn fr-btn--sm fr-btn--tertiary" id="mep-defaut">
+          <i class="ri-arrow-go-back-line"></i>&nbsp;Valeurs par défaut
+        </button>
+      </aside>
+    </div>
+
+    <div id="pop-lien" class="pop pop-lien" hidden>
+      <input
+        id="champ-lien"
+        type="url"
+        placeholder="https://exemple.fr"
+        aria-label="Adresse du lien"
+      />
+      <button class="fr-btn fr-btn--sm" id="btn-lien-ok">Appliquer</button>
+      <button class="tb" id="btn-lien-suppr" title="Retirer le lien">
+        <i class="ri-link-unlink"></i>
+      </button>
+    </div>
+
+    <div id="pop-balise" class="pop pop-reglages" hidden>
+      <div class="titre" id="bal-titre"></div>
+      <label id="bal-champ-format"
+        ><span>Format</span
+        ><select id="bal-format"></select
+      ></label>
+      <label
+        ><span>Si le champ est vide, afficher</span
+        ><input id="bal-vide" type="text" placeholder="(rien)"
+      /></label>
+      <button class="fr-btn fr-btn--sm fr-btn--tertiary" id="bal-fermer">
+        Fermer
+      </button>
+    </div>
+
+    <div id="pop-condition" class="pop pop-reglages" hidden>
+      <div class="titre">Bloc conditionnel</div>
+      <label
+        ><span>Afficher ce bloc si</span
+        ><select id="cond-col"></select
+      ></label>
+      <label
+        ><span>Condition</span
+        ><select id="cond-op"></select
+      ></label>
+      <label id="cond-champ-valeur"
+        ><span>Valeur</span><input id="cond-valeur" type="text"
+      /></label>
+      <div class="duo">
+        <button class="fr-btn fr-btn--sm fr-btn--tertiary" id="cond-supprimer">
+          <i class="ri-delete-bin-line"></i>&nbsp;Retirer
+        </button>
+        <button class="fr-btn fr-btn--sm" id="cond-fermer">Fermer</button>
+      </div>
+    </div>
+
+    <div id="pop-images" class="pop" hidden></div>
+    <div id="pop-emoji" class="pop pop-emoji" hidden></div>
+    <div id="menu-suggest" class="pop suggest" hidden></div>
+
+    <script type="module">
+      // ════════════════════════════════════════════════════════════════
+      // Configuration
+      // ════════════════════════════════════════════════════════════════
+      const VERSION = "p6a.0";
+      const TABLE_MODELES = "Modeles_PDF";
+      const COLS_MODELE = {
+        nom: "Nom",
+        contenu: "Contenu",
+        tableRef: "Table_cible",
+        tableNom: "Table_cible_nom",
+        images: "Images",
+        mode: "Mode",
+        nomFichier: "Nom_fichier",
+        miseEnPage: "Mise_en_page",
+      };
+      const DELAI_SAUVEGARDE = 1500;
+      const TIPTAP_VERSION = "3.31.3";
+      const TIPTAP_URLS = {
+        core: `https://esm.sh/@tiptap/core@${TIPTAP_VERSION}`,
+        starter: `https://esm.sh/@tiptap/starter-kit@${TIPTAP_VERSION}`,
+        image: `https://esm.sh/@tiptap/extension-image@${TIPTAP_VERSION}`,
+        table: `https://esm.sh/@tiptap/extension-table@${TIPTAP_VERSION}`,
+        align: `https://esm.sh/@tiptap/extension-text-align@${TIPTAP_VERSION}`,
+        suggestion: `https://esm.sh/@tiptap/suggestion@${TIPTAP_VERSION}`,
+      };
+      const FONTS_URL =
+        "https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/fonts/";
+      const EMOJIS =
+        "😀 🙂 😉 😊 👍 👏 🙏 👋 ✅ ❌ ⚠️ ❗ ❓ ℹ️ ⭐ 🎉 📄 📋 📌 📎 📅 📆 ⏰ ✉️ 📞 📍 🏫 🎓 📚 ✏️ 🖊️ 💡 🌾 🌱 🌳 🐄 🐑 🐴 🚜 🍇 ➡️ ⬅️ ⬆️ ⬇️ 🔹 🔸 ▶️ 🇫🇷".split(
+          " ",
+        );
+      const ICONES_TYPE = {
+        Text: "ri-text",
+        Numeric: "ri-hashtag",
+        Int: "ri-hashtag",
+        Date: "ri-calendar-line",
+        DateTime: "ri-time-line",
+        Bool: "ri-checkbox-line",
+        Choice: "ri-list-check",
+        ChoiceList: "ri-list-check-2",
+        Ref: "ri-links-line",
+        RefList: "ri-links-line",
+      };
+      const FONCTIONS = {
+        somme: "Somme",
+        moyenne: "Moyenne",
+        min: "Minimum",
+        max: "Maximum",
+      };
+      const FORMATS = {
+        a4: { l: 210, h: 297, css: "A4" },
+        a5: { l: 148, h: 210, css: "A5" },
+        letter: { l: 216, h: 279, css: "letter" },
+      };
+      const MEP_DEFAUT = {
+        format: "a4",
+        orientation: "portrait",
+        police: 11,
+        marges: { haut: 20, bas: 20, gauche: 20, droite: 20 },
+        enTete: { g: "", c: "", d: "" },
+        pied: { g: "", c: "", d: "" },
+        sansPremiere: false,
+        colLibelle: null,
+      };
+      const CONTENU_VIDE = {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 1 },
+            content: [{ type: "text", text: "Titre du document" }],
+          },
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "Tapez @ pour insérer un champ, ou cliquez sur un champ dans la colonne de gauche.",
+              },
+            ],
+          },
+        ],
+      };
+
+      // Formats de valeur proposés selon le type de colonne
+      const FORMATS_VALEUR = {
+        Date: {
+          "": "31/12/2026",
+          long: "31 décembre 2026",
+          moisAn: "décembre 2026",
+          annee: "2026",
+          iso: "2026-12-31",
+        },
+        DateTime: {
+          "": "31/12/2026 14:05",
+          long: "31 décembre 2026 à 14:05",
+          dateSeule: "31/12/2026",
+          heure: "14:05",
+        },
+        Numeric: {
+          "": "1 234,5",
+          entier: "1 235",
+          deux: "1 234,50",
+          euro: "1 234,50 €",
+          pourcent: "12,3 %",
+        },
+        Int: {
+          "": "1 234",
+          deux: "1 234,00",
+          euro: "1 234,00 €",
+          pourcent: "12 %",
+        },
+        Text: {
+          "": "Tel quel",
+          majuscules: "MAJUSCULES",
+          minuscules: "minuscules",
+          capitale: "Première Lettre",
+        },
+        Choice: {
+          "": "Tel quel",
+          majuscules: "MAJUSCULES",
+          minuscules: "minuscules",
+          capitale: "Première Lettre",
+        },
+        Ref: {
+          "": "Tel quel",
+          majuscules: "MAJUSCULES",
+          minuscules: "minuscules",
+          capitale: "Première Lettre",
+        },
+        ChoiceList: {
+          "": "Virgules",
+          pointVirgule: "Points-virgules",
+          lignes: "Une par ligne",
+          puces: "Puces • une par ligne",
+        },
+        RefList: {
+          "": "Virgules",
+          pointVirgule: "Points-virgules",
+          lignes: "Une par ligne",
+          puces: "Puces • une par ligne",
+        },
+        Bool: {
+          "": "Oui / Non",
+          croix: "X ou rien",
+          coche: "✓ ou rien",
+          vraiFaux: "Vrai / Faux",
+        },
+      };
+      const OPERATEURS = {
+        rempli: "est rempli",
+        vide: "est vide",
+        egal: "est égal à",
+        different: "est différent de",
+        contient: "contient",
+        superieur: "est supérieur à",
+        inferieur: "est inférieur à",
+        vrai: "est coché",
+        faux: "n'est pas coché",
+      };
+      const OP_SANS_VALEUR = ["rempli", "vide", "vrai", "faux"];
+
+      // ════════════════════════════════════════════════════════════════
+      // État
+      // ════════════════════════════════════════════════════════════════
+      const $ = (id) => document.getElementById(id);
+      let editor = null;
+      let TABLES = [];
+      let META_COLS = [];
+      let COLONNES = [];
+      let COLS = new Map();
+      let MODELES = [];
+      let GALERIE = [];
+      let modele = null;
+      let mep = structuredClone(MEP_DEFAUT);
+      let modeDoc = "Fiche";
+      let modeleNomFichier = "";
+      let colLibelle = null;
+      let tableCourante = null;
+      let tableLiee = null;
+      let modeLie = false;
+      let recsLies = [];
+      let enregistrements = [];
+      let index = 0;
+      let pret = false;
+      let enApercu = false;
+      let chargement = false;
+      let minuteur = null;
+      let dernierEtat = null;
+      let ecritureEnCours = false;
+      let baliseEnCours = null; // { pos, attrs }
+      let condEnCours = null; // { pos, attrs }
+
+      const estRapport = () => modeDoc === "Rapport";
+
+      // ════════════════════════════════════════════════════════════════
+      // Utilitaires
+      // ════════════════════════════════════════════════════════════════
+      const esc = (s) =>
+        String(s ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      const escCss = (s) =>
+        String(s ?? "")
+          .replace(/\\/g, "\\\\")
+          .replace(/"/g, '\\"');
+      const norm = (s) =>
+        String(s ?? "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
+      const attendre = (ms, v) =>
+        new Promise((r) => setTimeout(() => r(v), ms));
+      const typeBase = (type) => String(type || "Any").split(":")[0];
+      const listeIds = (v) =>
+        Array.isArray(v)
+          ? (v[0] === "L" ? v.slice(1) : v).filter(Number.isInteger)
+          : [];
+      const borner = (v, min, max, def) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+      };
+      const estNumerique = (col) =>
+        ["Numeric", "Int"].includes(typeBase(col.type));
+
+      function statut(msg) {
+        $("statut").textContent = msg || "";
+      }
+      function alerte(msg, niveau = "error") {
+        $("alerte").innerHTML = msg
+          ? `<div class="fr-alert fr-alert--${niveau} fr-alert--sm"><p>${esc(msg)}</p></div>`
+          : "";
+      }
+      function etatSauvegarde(cle) {
+        const t = {
+          enregistre: `<i class="ri-check-line"></i>Enregistré`,
+          encours: `<i class="ri-loader-4-line"></i>Enregistrement…`,
+          modifie: `<i class="ri-pencil-line"></i>Modifié`,
+          erreur: `<i class="ri-error-warning-line"></i>Non enregistré`,
+          "": "",
+        };
+        $("etat-sauvegarde").innerHTML = t[cle] ?? "";
+        $("etat-sauvegarde").style.color =
+          cle === "erreur" ? "#CE0500" : "#666";
+      }
+      function colonnesEnLignes(t) {
+        return t.id.map((id, i) => {
+          const r = { id };
+          for (const k in t) r[k] = t[k][i];
+          return r;
+        });
+      }
+      const memoire = {
+        lire: (k) => {
+          try {
+            return localStorage.getItem(`publipostage:${k}`);
+          } catch {
+            return null;
+          }
+        },
+        ecrire: (k, v) => {
+          try {
+            localStorage.setItem(`publipostage:${k}`, v);
+          } catch {}
+        },
+      };
+
+      // ════════════════════════════════════════════════════════════════
+      // Pièces jointes Grist → blob URL
+      // ════════════════════════════════════════════════════════════════
+      let JETON = null;
+      const CACHE_PJ = new Map();
+      function jeton() {
+        if (!JETON)
+          JETON = grist.docApi.getAccessToken({ readOnly: true }).catch((e) => {
+            JETON = null;
+            throw e;
+          });
+        return JETON;
+      }
+      async function telechargerPJ(id, reessai = true) {
+        const { token, baseUrl } = await jeton();
+        const r = await fetch(
+          `${baseUrl}/attachments/${id}/download?auth=${token}`,
+        );
+        if ((r.status === 401 || r.status === 403) && reessai) {
+          JETON = null;
+          return telechargerPJ(id, false);
+        }
+        if (!r.ok) throw new Error(`Pièce jointe ${id} : HTTP ${r.status}`);
+        return URL.createObjectURL(await r.blob());
+      }
+      function urlPJ(id) {
+        if (!CACHE_PJ.has(id))
+          CACHE_PJ.set(
+            id,
+            telechargerPJ(id).catch((e) => {
+              CACHE_PJ.delete(id);
+              throw e;
+            }),
+          );
+        return CACHE_PJ.get(id);
+      }
+      async function chargerGalerie() {
+        GALERIE = [];
+        try {
+          const a = await grist.docApi.fetchTable("_grist_Attachments");
+          const noms = new Map(a.id.map((id, i) => [id, a.fileName[i]]));
+          const ids = new Set();
+          MODELES.forEach((m) =>
+            listeIds(m[COLS_MODELE.images]).forEach((id) => ids.add(id)),
+          );
+          GALERIE = [...ids].map((id) => ({
+            id,
+            nom: noms.get(id) || `Image ${id}`,
+          }));
+        } catch (e) {
+          console.warn("Galerie indisponible :", e);
+        }
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // Métadonnées : tables et colonnes
+      // ════════════════════════════════════════════════════════════════
+      async function chargerMeta() {
+        const [t, c] = await Promise.all([
+          grist.docApi.fetchTable("_grist_Tables"),
+          grist.docApi.fetchTable("_grist_Tables_column"),
+        ]);
+        TABLES = t.id
+          .map((ref, i) => ({
+            ref,
+            tableId: t.tableId[i],
+            resume: t.summarySourceTable[i],
+          }))
+          .filter(
+            (x) =>
+              !x.resume &&
+              !x.tableId.startsWith("GristHidden_") &&
+              x.tableId !== TABLE_MODELES,
+          )
+          .sort((a, b) => a.tableId.localeCompare(b.tableId));
+        META_COLS = c.id.map((ref, i) => ({
+          ref,
+          parent: c.parentId[i],
+          pos: c.parentPos[i],
+          colId: c.colId[i],
+          label: c.label[i] || c.colId[i],
+          type: c.type[i],
+          displayCol: c.displayCol[i],
+        }));
+
+        const refModeles = t.id.find((_, i) => t.tableId[i] === TABLE_MODELES);
+        if (!refModeles)
+          throw new Error(
+            `La table ${TABLE_MODELES} est introuvable dans ce document.`,
+          );
+        const presentes = new Set(
+          META_COLS.filter((c) => c.parent === refModeles).map((c) => c.colId),
+        );
+        const manquantes = Object.values(COLS_MODELE).filter(
+          (c) => !presentes.has(c),
+        );
+        if (manquantes.length)
+          throw new Error(
+            `Colonnes manquantes dans ${TABLE_MODELES} : ${manquantes.join(", ")}`,
+          );
+      }
+      function colonnesDe(tableRef) {
+        const parRef = new Map(META_COLS.map((c) => [c.ref, c]));
+        return META_COLS.filter(
+          (c) =>
+            c.parent === tableRef &&
+            c.colId !== "manualSort" &&
+            !c.colId.startsWith("gristHelper_") &&
+            typeBase(c.type) !== "Attachments",
+        )
+          .sort((a, b) => a.pos - b.pos)
+          .map((c) => ({
+            ...c,
+            displayColId: c.displayCol ? parRef.get(c.displayCol)?.colId : null,
+          }));
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // Valeurs : lecture et formatage
+      // ════════════════════════════════════════════════════════════════
+      function brute(rec, col) {
+        if (!rec) return null;
+        if (col.displayColId && col.displayColId in rec)
+          return rec[col.displayColId];
+        return rec[col.colId];
+      }
+      function dateDe(v) {
+        if (v instanceof Date) return v;
+        if (typeof v === "number") return new Date(v * 1000);
+        if (Array.isArray(v) && (v[0] === "d" || v[0] === "D"))
+          return new Date(v[1] * 1000);
+        return null;
+      }
+      function texteSelonFormat(txt, fmt) {
+        if (fmt === "majuscules") return txt.toLocaleUpperCase("fr-FR");
+        if (fmt === "minuscules") return txt.toLocaleLowerCase("fr-FR");
+        if (fmt === "capitale")
+          return txt.replace(
+            /(^|\s|['-])(\p{L})/gu,
+            (m, a, b) => a + b.toLocaleUpperCase("fr-FR"),
+          );
+        return txt;
+      }
+      function formater(v, col, fmt = "") {
+        const type = typeBase(col.type);
+        if (v === false) return type === "Bool" ? formaterBool(false, fmt) : "";
+        if (v === null || v === undefined || v === "") return "";
+        if (type === "Bool") return formaterBool(!!v, fmt);
+
+        // Listes
+        if (Array.isArray(v) && v[0] === "L") {
+          const sous = {
+            ...col,
+            type:
+              type === "RefList"
+                ? "Ref"
+                : type === "ChoiceList"
+                  ? "Choice"
+                  : "Any",
+          };
+          const items = v
+            .slice(1)
+            .map((x) =>
+              formater(
+                x,
+                sous,
+                ["majuscules", "minuscules", "capitale"].includes(fmt)
+                  ? fmt
+                  : "",
+              ),
+            )
+            .filter(Boolean);
+          if (!items.length) return "";
+          if (fmt === "pointVirgule") return items.join(" ; ");
+          if (fmt === "lignes") return items.join("\n");
+          if (fmt === "puces") return items.map((x) => `• ${x}`).join("\n");
+          return items.join(", ");
+        }
+        if (Array.isArray(v) && typeof v[0] === "string" && v[0].length === 1) {
+          const [code] = v;
+          if (code === "E") return "#Erreur";
+          if (code === "R") return texteSelonFormat(String(v[2]), fmt);
+          if (code !== "d" && code !== "D") return "";
+        } else if (Array.isArray(v)) {
+          return v
+            .map((x) => formater(x, { ...col, type: "Any" }, fmt))
+            .filter(Boolean)
+            .join(", ");
+        }
+
+        // Dates
+        if (type === "Date" || type === "DateTime") {
+          const d = dateDe(v);
+          if (!d || isNaN(d)) return String(v);
+          const tz =
+            type === "Date"
+              ? "UTC"
+              : String(col.type).split(":")[1] || undefined;
+          const o = (opts) => {
+            try {
+              return d.toLocaleString("fr-FR", { timeZone: tz, ...opts });
+            } catch {
+              return d.toLocaleDateString("fr-FR");
+            }
+          };
+          if (fmt === "long")
+            return type === "DateTime"
+              ? o({ dateStyle: "long", timeStyle: "short" })
+                  .replace(" ", " à ")
+                  .replace(/à (\d)/, "à $1")
+              : o({ day: "numeric", month: "long", year: "numeric" });
+          if (fmt === "moisAn") return o({ month: "long", year: "numeric" });
+          if (fmt === "annee") return o({ year: "numeric" });
+          if (fmt === "iso") {
+            try {
+              return d.toISOString().slice(0, 10);
+            } catch {
+              return String(v);
+            }
+          }
+          if (fmt === "dateSeule")
+            return o({ day: "2-digit", month: "2-digit", year: "numeric" });
+          if (fmt === "heure") return o({ hour: "2-digit", minute: "2-digit" });
+          return type === "DateTime"
+            ? o({ dateStyle: "short", timeStyle: "short" })
+            : o({ day: "2-digit", month: "2-digit", year: "numeric" });
+        }
+
+        // Nombres
+        if (typeof v === "number") {
+          if (fmt === "entier")
+            return v.toLocaleString("fr-FR", { maximumFractionDigits: 0 });
+          if (fmt === "deux")
+            return v.toLocaleString("fr-FR", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            });
+          if (fmt === "euro")
+            return v.toLocaleString("fr-FR", {
+              style: "currency",
+              currency: "EUR",
+            });
+          if (fmt === "pourcent")
+            return (
+              v.toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " %"
+            );
+          return v.toLocaleString("fr-FR");
+        }
+        if (v instanceof Date) return v.toLocaleDateString("fr-FR");
+        return texteSelonFormat(String(v), fmt);
+      }
+      function formaterBool(b, fmt) {
+        if (fmt === "croix") return b ? "X" : "";
+        if (fmt === "coche") return b ? "✓" : "";
+        if (fmt === "vraiFaux") return b ? "Vrai" : "Faux";
+        return b ? "Oui" : "Non";
+      }
+      function valeurBalise(rec, col, fmt, siVide) {
+        const txt = formater(brute(rec, col), col, fmt);
+        return txt === "" ? siVide || "" : txt;
+      }
+      function libelleEnregistrement(rec, i) {
+        const col = COLS.get(colLibelle) || COLONNES[0];
+        const txt = col ? formater(brute(rec, col), col) : "";
+        return `${i + 1}. ${txt || `Ligne ${rec.id}`}`.slice(0, 80);
+      }
+      function nombreDe(rec, col) {
+        const v = rec?.[col.colId];
+        return typeof v === "number" && Number.isFinite(v) ? v : null;
+      }
+      function calculer(fonc, col, recs, fmt = "") {
+        if (fonc === "nb") return recs.length.toLocaleString("fr-FR");
+        if (fonc === "datejour")
+          return formater(new Date(), { type: "Date" }, fmt);
+        if (!col) return "";
+        const vals = recs
+          .map((r) => nombreDe(r, col))
+          .filter((v) => v !== null);
+        if (!vals.length) return "";
+        let n;
+        if (fonc === "somme") n = vals.reduce((a, b) => a + b, 0);
+        else if (fonc === "moyenne")
+          n = vals.reduce((a, b) => a + b, 0) / vals.length;
+        else if (fonc === "min") n = Math.min(...vals);
+        else if (fonc === "max") n = Math.max(...vals);
+        else return "";
+        return formater(n, col, fmt || "");
+      }
+      function libelleBalise(colRef, fonc, secours) {
+        const col = COLS.get(colRef);
+        if (fonc === "nb") return "Nombre de lignes";
+        if (fonc === "datejour") return "Date du jour";
+        if (!col) return secours || "Champ inconnu";
+        if (!fonc) return col.label;
+        const prefixe =
+          { somme: "Σ", moyenne: "Moy.", min: "Min.", max: "Max." }[fonc] ||
+          fonc;
+        return `${prefixe} ${col.label}`;
+      }
+      function formatsPour(colRef, fonc) {
+        if (fonc === "nb") return null;
+        if (fonc === "datejour") return FORMATS_VALEUR.Date;
+        const col = COLS.get(colRef);
+        if (!col) return null;
+        if (fonc) return FORMATS_VALEUR.Numeric;
+        return FORMATS_VALEUR[typeBase(col.type)] || null;
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // Conditions
+      // ════════════════════════════════════════════════════════════════
+      function resumeCondition(attrs) {
+        const col = COLS.get(attrs.colRef);
+        const nom = col ? col.label : "champ supprimé";
+        const op = OPERATEURS[attrs.op] || attrs.op;
+        return OP_SANS_VALEUR.includes(attrs.op)
+          ? `Si ${nom} ${op}`
+          : `Si ${nom} ${op} « ${attrs.valeur || ""} »`;
+      }
+      function conditionVraie(attrs, rec) {
+        const col = COLS.get(attrs.colRef);
+        if (!col) return true;
+        const v = brute(rec, col);
+        const txt = formater(v, col);
+        const cible = String(attrs.valeur ?? "").trim();
+        switch (attrs.op) {
+          case "rempli":
+            return txt !== "";
+          case "vide":
+            return txt === "";
+          case "vrai":
+            return !!v && v !== "false";
+          case "faux":
+            return !v || v === "false";
+          case "egal":
+            return norm(txt) === norm(cible);
+          case "different":
+            return norm(txt) !== norm(cible);
+          case "contient":
+            return norm(txt).includes(norm(cible));
+          case "superieur":
+          case "inferieur": {
+            const a =
+              typeof v === "number"
+                ? v
+                : parseFloat(String(txt).replace(/\s/g, "").replace(",", "."));
+            const b = parseFloat(cible.replace(/\s/g, "").replace(",", "."));
+            if (Number.isNaN(a) || Number.isNaN(b))
+              return attrs.op === "superieur"
+                ? norm(txt) > norm(cible)
+                : norm(txt) < norm(cible);
+            return attrs.op === "superieur" ? a > b : a < b;
+          }
+          default:
+            return true;
+        }
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // Mise en page
+      // ════════════════════════════════════════════════════════════════
+      function dimensions() {
+        const f = FORMATS[mep.format] || FORMATS.a4;
+        return mep.orientation === "paysage"
+          ? { l: f.h, h: f.l, css: `${f.css} landscape` }
+          : { l: f.l, h: f.h, css: `${f.css} portrait` };
+      }
+      function normaliserMep(brut) {
+        const m = structuredClone(MEP_DEFAUT);
+        if (!brut || typeof brut !== "object") return m;
+        if (FORMATS[brut.format]) m.format = brut.format;
+        if (brut.orientation === "paysage") m.orientation = "paysage";
+        m.police = borner(brut.police, 7, 16, MEP_DEFAUT.police);
+        for (const k of ["haut", "bas", "gauche", "droite"])
+          m.marges[k] = borner(brut.marges?.[k], 0, 60, MEP_DEFAUT.marges[k]);
+        for (const k of ["g", "c", "d"]) {
+          m.enTete[k] = String(brut.enTete?.[k] ?? "").slice(0, 120);
+          m.pied[k] = String(brut.pied?.[k] ?? "").slice(0, 120);
+        }
+        m.sansPremiere = !!brut.sansPremiere;
+        m.colLibelle = Number.isInteger(brut.colLibelle)
+          ? brut.colLibelle
+          : null;
+        return m;
+      }
+      function remplirColLibelle() {
+        $("mep-col-libelle").innerHTML = COLONNES.length
+          ? COLONNES.map(
+              (c) => `<option value="${c.ref}">${esc(c.label)}</option>`,
+            ).join("")
+          : `<option value="">Aucune colonne</option>`;
+        if (!COLS.has(colLibelle)) colLibelle = COLONNES[0]?.ref ?? null;
+        $("mep-col-libelle").value = colLibelle ?? "";
+      }
+      function remplirFormulaireMep() {
+        $("mep-mode").value = modeDoc;
+        $("mep-format").value = mep.format;
+        $("mep-orientation").value = mep.orientation;
+        $("mep-police").value = mep.police;
+        for (const k of ["haut", "bas", "gauche", "droite"])
+          $(`mep-${k}`).value = mep.marges[k];
+        $("mep-eg").value = mep.enTete.g;
+        $("mep-ec").value = mep.enTete.c;
+        $("mep-ed").value = mep.enTete.d;
+        $("mep-pg").value = mep.pied.g;
+        $("mep-pc").value = mep.pied.c;
+        $("mep-pd").value = mep.pied.d;
+        $("mep-sans-premiere").checked = mep.sansPremiere;
+        $("mep-nom-fichier").value = modeleNomFichier;
+        $("mep-sans-entete").checked = !Object.values(mep.enTete).some(Boolean);
+        $("mep-sans-pied").checked = !Object.values(mep.pied).some(Boolean);
+        colLibelle = mep.colLibelle;
+        remplirColLibelle();
+        majBlocsMep();
+        majApercuNom();
+      }
+      function majBlocsMep() {
+        for (const [c, b] of [
+          ["mep-sans-entete", "bloc-entete"],
+          ["mep-sans-pied", "bloc-pied"],
+        ]) {
+          const off = $(c).checked;
+          $(b).style.opacity = off ? ".4" : "1";
+          $(b)
+            .querySelectorAll("input")
+            .forEach((i) => (i.disabled = off));
+        }
+      }
+      function lireFormulaireMep() {
+        const modeAvant = modeDoc;
+        modeDoc = $("mep-mode").value === "Rapport" ? "Rapport" : "Fiche";
+        mep = normaliserMep({
+          format: $("mep-format").value,
+          orientation: $("mep-orientation").value,
+          police: $("mep-police").value,
+          marges: {
+            haut: $("mep-haut").value,
+            bas: $("mep-bas").value,
+            gauche: $("mep-gauche").value,
+            droite: $("mep-droite").value,
+          },
+          enTete: $("mep-sans-entete").checked
+            ? {}
+            : {
+                g: $("mep-eg").value,
+                c: $("mep-ec").value,
+                d: $("mep-ed").value,
+              },
+          pied: $("mep-sans-pied").checked
+            ? {}
+            : {
+                g: $("mep-pg").value,
+                c: $("mep-pc").value,
+                d: $("mep-pd").value,
+              },
+          sansPremiere: $("mep-sans-premiere").checked,
+          colLibelle: Number($("mep-col-libelle").value) || null,
+        });
+        colLibelle = mep.colLibelle;
+        majBlocsMep();
+        majNav();
+        modeleNomFichier = $("mep-nom-fichier").value.slice(0, 200);
+        appliquerMepEcran();
+        if (modeAvant !== modeDoc) appliquerMode();
+        majApercuNom();
+        marquerModifie();
+        if (enApercu) rafraichirApercu();
+      }
+      function appliquerMepEcran() {
+        const d = dimensions();
+        const f = $("feuille");
+        f.style.width = `${d.l}mm`;
+        f.style.minHeight = `${d.h}mm`;
+        f.style.padding = `${mep.marges.haut}mm ${mep.marges.droite}mm ${mep.marges.bas}mm ${mep.marges.gauche}mm`;
+        f.style.fontSize = `${mep.police}pt`;
+        const util = d.h - mep.marges.haut - mep.marges.bas;
+        f.querySelector(".ProseMirror")?.style.setProperty(
+          "min-height",
+          `${Math.max(util, 20)}mm`,
+        );
+        $("apercu").style.width = `${d.l}mm`;
+        $("apercu").style.minHeight = `${d.h}mm`;
+      }
+      function contenuCss(gabarit) {
+        if (!gabarit) return "none";
+        const parts = [];
+        const regex = /\{(page|pages)\}/g;
+        let dernier = 0,
+          m;
+        const texte = gabarit
+          .replace(/\{date\}/g, new Date().toLocaleDateString("fr-FR"))
+          .replace(/\{modele\}/g, modele?.[COLS_MODELE.nom] || "");
+        while ((m = regex.exec(texte))) {
+          if (m.index > dernier)
+            parts.push(`"${escCss(texte.slice(dernier, m.index))}"`);
+          parts.push(m[1] === "page" ? "counter(page)" : "counter(pages)");
+          dernier = m.index + m[0].length;
+        }
+        if (dernier < texte.length)
+          parts.push(`"${escCss(texte.slice(dernier))}"`);
+        return parts.length ? parts.join(" ") : "none";
+      }
+      function boitesMarge(prefixe, zones) {
+        const pos = { g: "left", c: "center", d: "right" };
+        return Object.entries(zones)
+          .filter(([, v]) => v)
+          .map(
+            ([k, v]) =>
+              `@${prefixe}-${pos[k]} { content: ${contenuCss(v)}; font: 8pt "Marianne", arial, sans-serif; color: #666; }`,
+          )
+          .join("\n    ");
+      }
+      function nomFichierCalcule(rec) {
+        const gabarit = modeleNomFichier.trim() || "{modele}";
+        const brutNom = gabarit.replace(/\{([^}]+)\}/g, (_, cle) => {
+          const k = cle.trim();
+          if (k === "date") return new Date().toLocaleDateString("fr-CA");
+          if (k === "modele") return modele?.[COLS_MODELE.nom] || "";
+          const col =
+            COLONNES.find((c) => c.colId === k) ||
+            COLONNES.find((c) => norm(c.label) === norm(k));
+          return col && rec ? formater(brute(rec, col), col) : "";
+        });
+        const nom = brutNom
+          .replace(/[\/\\:*?"<>|]/g, "_")
+          .replace(/\s+/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "")
+          .slice(0, 120);
+        return `${nom || "document"}.pdf`;
+      }
+      function majApercuNom() {
+        const rec = estRapport() ? enregistrements[0] : enregistrements[index];
+        $("apercu-nom").textContent = rec ? nomFichierCalcule(rec) : "—";
+      }
+      [
+        "mep-mode",
+        "mep-format",
+        "mep-orientation",
+        "mep-police",
+        "mep-haut",
+        "mep-bas",
+        "mep-gauche",
+        "mep-droite",
+        "mep-eg",
+        "mep-ec",
+        "mep-ed",
+        "mep-pg",
+        "mep-pc",
+        "mep-pd",
+        "mep-sans-premiere",
+        "mep-nom-fichier",
+        "mep-sans-entete",
+        "mep-sans-pied",
+        "mep-col-libelle",
+      ].forEach((id) => $(id).addEventListener("change", lireFormulaireMep));
+      $("mep-nom-fichier").addEventListener("input", () => {
+        modeleNomFichier = $("mep-nom-fichier").value;
+        majApercuNom();
+      });
+      $("btn-mise-en-page").addEventListener("click", () => {
+        const p = $("panneau-mep");
+        p.hidden = !p.hidden;
+        $("btn-mise-en-page").classList.toggle("actif", !p.hidden);
+      });
+      $("mep-defaut").addEventListener("click", () => {
+        mep = structuredClone(MEP_DEFAUT);
+        remplirFormulaireMep();
+        lireFormulaireMep();
+      });
+
+      function appliquerMode() {
+        const r = estRapport();
+        $("badge-mode-doc").className =
+          `fr-badge fr-badge--sm ${r ? "fr-badge--purple-glycine" : ""}`;
+        $("badge-mode-doc").textContent = r ? "Rapport" : "Fiche";
+        $("bloc-rapport").hidden = !r;
+        $("btn-repetee").hidden = !r;
+        $("btn-imprimer-tout").hidden = r;
+        $("btn-pdf-lot").hidden = r;
+        $("btn-pdf").innerHTML = r
+          ? `<i class="ri-file-download-line"></i>&nbsp;Télécharger le rapport`
+          : `<i class="ri-file-download-line"></i>&nbsp;Télécharger le PDF`;
+        ["btn-prec", "btn-suiv", "sel-rec"].forEach((i) => ($(i).disabled = r));
+        $("bloc-nav").style.opacity = r ? ".5" : "1";
+        $("bloc-nav").title = r
+          ? "En mode Rapport, toutes les lignes affichées sont utilisées."
+          : "";
+        afficherCalculs();
+        majNav();
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // Modèles
+      // ════════════════════════════════════════════════════════════════
+      async function chargerModeles() {
+        MODELES = colonnesEnLignes(
+          await grist.docApi.fetchTable(TABLE_MODELES),
+        );
+        trierModeles();
+      }
+      function trierModeles() {
+        MODELES.sort((a, b) =>
+          String(a[COLS_MODELE.nom] || "").localeCompare(
+            String(b[COLS_MODELE.nom] || ""),
+            "fr",
+          ),
+        );
+      }
+      function nomTable(ref) {
+        return TABLES.find((t) => t.ref === ref)?.tableId || "";
+      }
+      function afficherModeles() {
+        $("sel-modele").innerHTML = MODELES.length
+          ? MODELES.map((m) => {
+              const t =
+                nomTable(m[COLS_MODELE.tableRef]) ||
+                m[COLS_MODELE.tableNom] ||
+                "";
+              return `<option value="${m.id}">${esc(m[COLS_MODELE.nom] || "Sans nom")}${t ? ` — ${esc(t)}` : ""}</option>`;
+            }).join("")
+          : `<option value="">Aucun modèle</option>`;
+        $("sel-modele").value = modele ? String(modele.id) : "";
+        ["btn-dupliquer", "btn-renommer", "btn-supprimer"].forEach(
+          (b) => ($(b).disabled = !modele),
+        );
+      }
+      function imagesUtilisees() {
+        const ids = new Set();
+        editor?.state.doc.descendants((n) => {
+          if (n.type.name === "image" && n.attrs.att) ids.add(n.attrs.att);
+        });
+        return ids;
+      }
+      function nettoyerBlobs(n) {
+        if (Array.isArray(n)) return n.map(nettoyerBlobs);
+        if (!n || typeof n !== "object") return n;
+        const c = { ...n };
+        if (c.type === "image" && c.attrs?.att)
+          c.attrs = { ...c.attrs, src: null };
+        if (c.content) c.content = nettoyerBlobs(c.content);
+        return c;
+      }
+      function marquerModifie() {
+        if (chargement) return;
+        etatSauvegarde("modifie");
+        clearTimeout(minuteur);
+        minuteur = setTimeout(() => sauvegarder(), DELAI_SAUVEGARDE);
+      }
+      function champsCourants() {
+        const conservees = new Set([
+          ...listeIds(modele?.[COLS_MODELE.images]),
+          ...imagesUtilisees(),
+        ]);
+        return {
+          [COLS_MODELE.contenu]: JSON.stringify(
+            nettoyerBlobs(editor.getJSON()),
+          ),
+          [COLS_MODELE.miseEnPage]: JSON.stringify(mep),
+          [COLS_MODELE.mode]: modeDoc,
+          [COLS_MODELE.nomFichier]: modeleNomFichier,
+          [COLS_MODELE.images]: ["L", ...conservees],
+          [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
+          [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
+        };
+      }
+      const empreinte = (c) =>
+        JSON.stringify([
+          c[COLS_MODELE.contenu],
+          c[COLS_MODELE.miseEnPage],
+          c[COLS_MODELE.mode],
+          c[COLS_MODELE.nomFichier],
+          c[COLS_MODELE.tableRef],
+        ]);
+      async function creerModele(nom, champs) {
+        const c = {
+          [COLS_MODELE.nom]: nom,
+          [COLS_MODELE.mode]: "Fiche",
+          ...champs,
+        };
+        const r = await grist.docApi.applyUserActions([
+          ["AddRecord", TABLE_MODELES, null, c],
+        ]);
+        const m = { id: r.retValues[0], ...c };
+        MODELES.push(m);
+        trierModeles();
+        return m;
+      }
+      // N'écrit QUE dans un modèle déjà ouvert : aucune création implicite.
+      async function sauvegarder(force = false) {
+        clearTimeout(minuteur);
+        if (!editor || !modele || !pret || chargement || ecritureEnCours)
+          return;
+        const champs = champsCourants();
+        const etat = empreinte(champs);
+        if (!force && etat === dernierEtat) return;
+        ecritureEnCours = true;
+        etatSauvegarde("encours");
+        try {
+          await grist.docApi.applyUserActions([
+            ["UpdateRecord", TABLE_MODELES, modele.id, champs],
+          ]);
+          Object.assign(modele, champs);
+          dernierEtat = etat;
+          etatSauvegarde("enregistre");
+        } catch (e) {
+          console.error(e);
+          etatSauvegarde("erreur");
+          alerte(`Enregistrement impossible : ${e.message}`);
+        } finally {
+          ecritureEnCours = false;
+        }
+      }
+      addEventListener("pagehide", () => sauvegarder());
+      addEventListener("blur", () => sauvegarder());
+
+      async function ouvrirModele(id) {
+        await sauvegarder();
+        fermerReglages();
+        modele = MODELES.find((m) => m.id === id) || null;
+        chargement = true;
+        try {
+          let contenu = CONTENU_VIDE;
+          if (modele?.[COLS_MODELE.contenu]) {
+            try {
+              contenu = JSON.parse(modele[COLS_MODELE.contenu]);
+            } catch {
+              alerte(
+                "Le contenu de ce modèle est illisible : un document vide est affiché à la place.",
+                "warning",
+              );
+            }
+          }
+          let brutMep = null;
+          try {
+            brutMep = modele?.[COLS_MODELE.miseEnPage]
+              ? JSON.parse(modele[COLS_MODELE.miseEnPage])
+              : null;
+          } catch {}
+          mep = normaliserMep(brutMep);
+          modeDoc =
+            modele?.[COLS_MODELE.mode] === "Rapport" ? "Rapport" : "Fiche";
+          modeleNomFichier = String(modele?.[COLS_MODELE.nomFichier] || "");
+          editor.commands.setContent(contenu, { emitUpdate: false });
+          remplirFormulaireMep();
+          appliquerMepEcran();
+          const ref = modele?.[COLS_MODELE.tableRef];
+          await choisirTable(
+            TABLES.some((t) => t.ref === ref) ? ref : tableParDefaut(),
+          );
+          appliquerMode();
+          dernierEtat = empreinte(champsCourants());
+        } finally {
+          chargement = false;
+        }
+        afficherModeles();
+        etatSauvegarde(modele ? "enregistre" : "");
+        editor.setEditable(!!modele);
+        $("feuille").style.opacity = modele ? "1" : ".5";
+        alerte(
+          modele ? "" : "Aucun modèle ouvert : cliquez sur + pour en créer un.",
+          "info",
+        );
+        if (modele) memoire.ecrire("modele", String(modele.id));
+        restaurerImages();
+        majOutils();
+      }
+      async function restaurerImages() {
+        const aCharger = [];
+        editor.state.doc.descendants((n, pos) => {
+          if (
+            n.type.name === "image" &&
+            n.attrs.att &&
+            !String(n.attrs.src || "").startsWith("blob:")
+          )
+            aCharger.push({ pos, att: n.attrs.att });
+        });
+        for (const { pos, att } of aCharger) {
+          try {
+            const src = await urlPJ(att);
+            const n = editor.state.doc.nodeAt(pos);
+            if (n?.type.name !== "image") continue;
+            const etait = chargement;
+            chargement = true;
+            editor.view.dispatch(
+              editor.state.tr.setNodeMarkup(pos, undefined, {
+                ...n.attrs,
+                src,
+              }),
+            );
+            chargement = etait;
+          } catch {
+            console.warn(`Image ${att} indisponible`);
+          }
+        }
+      }
+
+      $("sel-modele").addEventListener("change", (e) =>
+        ouvrirModele(Number(e.target.value)),
+      );
+      $("btn-nouveau").addEventListener("click", async () => {
+        const nom = prompt("Nom du nouveau modèle :", "Nouveau modèle");
+        if (nom === null) return;
+        await sauvegarder();
+        try {
+          const m = await creerModele(nom.trim() || "Nouveau modèle", {
+            [COLS_MODELE.contenu]: JSON.stringify(CONTENU_VIDE),
+            [COLS_MODELE.miseEnPage]: JSON.stringify({
+              ...MEP_DEFAUT,
+              pied: { g: "", c: "", d: "Page {page}/{pages}" },
+            }),
+            [COLS_MODELE.tableRef]: tableCourante?.ref ?? null,
+            [COLS_MODELE.tableNom]: tableCourante?.tableId ?? "",
+          });
+          await ouvrirModele(m.id);
+        } catch (e) {
+          alerte(`Création impossible : ${e.message}`);
+        }
+      });
+      $("btn-dupliquer").addEventListener("click", async () => {
+        if (!modele) return;
+        const nom = prompt(
+          "Nom de la copie :",
+          `${modele[COLS_MODELE.nom] || "Modèle"} (copie)`,
+        );
+        if (nom === null) return;
+        await sauvegarder(true);
+        try {
+          const champs = { ...modele };
+          delete champs.id;
+          delete champs[COLS_MODELE.nom];
+          const m = await creerModele(nom.trim() || "Copie", champs);
+          await ouvrirModele(m.id);
+        } catch (e) {
+          alerte(`Duplication impossible : ${e.message}`);
+        }
+      });
+      $("btn-renommer").addEventListener("click", async () => {
+        if (!modele) return;
+        const nom = prompt("Nouveau nom :", modele[COLS_MODELE.nom] || "");
+        if (nom === null || !nom.trim()) return;
+        try {
+          await grist.docApi.applyUserActions([
+            [
+              "UpdateRecord",
+              TABLE_MODELES,
+              modele.id,
+              { [COLS_MODELE.nom]: nom.trim() },
+            ],
+          ]);
+          modele[COLS_MODELE.nom] = nom.trim();
+          trierModeles();
+          afficherModeles();
+          majApercuNom();
+        } catch (e) {
+          alerte(`Renommage impossible : ${e.message}`);
+        }
+      });
+      $("btn-supprimer").addEventListener("click", async () => {
+        if (
+          !modele ||
+          !confirm(
+            `Supprimer définitivement le modèle « ${modele[COLS_MODELE.nom]} » ? Cette action est irréversible.`,
+          )
+        )
+          return;
+        clearTimeout(minuteur);
+        const id = modele.id;
+        modele = null;
+        try {
+          await grist.docApi.applyUserActions([
+            ["RemoveRecord", TABLE_MODELES, id],
+          ]);
+          MODELES = MODELES.filter((m) => m.id !== id);
+          memoire.ecrire("modele", "");
+          await ouvrirModele(MODELES[0]?.id ?? null);
+        } catch (e) {
+          alerte(`Suppression impossible : ${e.message}`);
+        }
+      });
+
+      // ════════════════════════════════════════════════════════════════
+      // Panneau des champs et des calculs
+      // ════════════════════════════════════════════════════════════════
+      function tagHtml(item) {
+        const icone = item.fonc
+          ? "ri-functions"
+          : ICONES_TYPE[typeBase(item.type)] || "ri-code-line";
+        const cls = item.fonc
+          ? "fr-tag fr-tag--sm tag-agg"
+          : "fr-tag fr-tag--sm";
+        return `<button type="button" class="${cls}" data-ref="${item.ref ?? ""}" data-fonc="${item.fonc || ""}" title="${esc(item.titre || item.colId || "")}"><i class="${icone}"></i>${esc(item.libelle)}</button>`;
+      }
+      function afficherChamps() {
+        const q = norm($("filtre-champs").value.trim());
+        const liste = COLONNES.filter(
+          (c) =>
+            !q ||
+            norm(c.label)
+              .split(/\s+/)
+              .some((w) => w.startsWith(q)) ||
+            norm(c.colId).startsWith(q),
+        );
+        $("liste-champs").innerHTML = liste.length
+          ? liste
+              .map((c) =>
+                tagHtml({
+                  ref: c.ref,
+                  libelle: c.label,
+                  type: c.type,
+                  colId: c.colId,
+                  titre: `${c.colId} (${typeBase(c.type)})`,
+                }),
+              )
+              .join("")
+          : `<p class="aide">${COLONNES.length ? "Aucun champ ne correspond." : "Choisissez une table source."}</p>`;
+      }
+      function afficherCalculs() {
+        if (!estRapport()) return;
+        const fonc = $("sel-fonction").value;
+        const num = COLONNES.filter(estNumerique);
+        const items = [
+          {
+            ref: null,
+            fonc: "nb",
+            libelle: "Nombre de lignes",
+            titre: "Nombre de lignes affichées",
+          },
+          {
+            ref: null,
+            fonc: "datejour",
+            libelle: "Date du jour",
+            titre: "Date du jour",
+          },
+          ...num.map((c) => ({
+            ref: c.ref,
+            fonc,
+            libelle: libelleBalise(c.ref, fonc),
+            titre: `${FONCTIONS[fonc]} de ${c.colId}`,
+          })),
+        ];
+        $("liste-calculs").innerHTML =
+          items.map(tagHtml).join("") +
+          (num.length
+            ? ""
+            : `<p class="aide">Aucune colonne numérique dans cette table.</p>`);
+      }
+      $("sel-fonction").addEventListener("change", afficherCalculs);
+      function insererBalise(item, chaine = editor.chain().focus()) {
+        return chaine
+          .insertContent([
+            {
+              type: "balise",
+              attrs: {
+                colRef: item.ref ?? null,
+                fonc: item.fonc || null,
+                label: item.libelle,
+                fmt: null,
+                siVide: null,
+              },
+            },
+            { type: "text", text: " " },
+          ])
+          .run();
+      }
+      for (const zone of ["liste-champs", "liste-calculs"]) {
+        $(zone).addEventListener("click", (e) => {
+          const b = e.target.closest("[data-ref]");
+          if (!b || !editor) return;
+          const ref = b.dataset.ref ? Number(b.dataset.ref) : null;
+          insererBalise({
+            ref,
+            fonc: b.dataset.fonc || null,
+            libelle: libelleBalise(ref, b.dataset.fonc || null),
+          });
+        });
+      }
+      $("filtre-champs").addEventListener("input", afficherChamps);
+
+      // ════════════════════════════════════════════════════════════════
+      // Autocomplétion @
+      // ════════════════════════════════════════════════════════════════
+      let suggestProps = null;
+      let suggestIndex = 0;
+      function itemsSuggestion(query) {
+        const q = norm(query);
+        const champs = COLONNES.map((c) => ({
+          ref: c.ref,
+          fonc: null,
+          libelle: c.label,
+          colId: c.colId,
+          type: c.type,
+        }));
+        const calculs = estRapport()
+          ? [
+              {
+                ref: null,
+                fonc: "nb",
+                libelle: "Nombre de lignes",
+                colId: "calcul",
+              },
+              {
+                ref: null,
+                fonc: "datejour",
+                libelle: "Date du jour",
+                colId: "calcul",
+              },
+              ...COLONNES.filter(estNumerique).flatMap((c) =>
+                Object.keys(FONCTIONS).map((f) => ({
+                  ref: c.ref,
+                  fonc: f,
+                  libelle: libelleBalise(c.ref, f),
+                  colId: c.colId,
+                  type: c.type,
+                })),
+              ),
+            ]
+          : [];
+        return [...champs, ...calculs]
+          .filter(
+            (it) =>
+              !q ||
+              norm(it.libelle)
+                .split(/\s+/)
+                .some((w) => w.startsWith(q)) ||
+              norm(it.colId).startsWith(q),
+          )
+          .slice(0, 12);
+      }
+      function dessinerSuggestion() {
+        const menu = $("menu-suggest");
+        if (!suggestProps) {
+          menu.hidden = true;
+          return;
+        }
+        const items = suggestProps.items;
+        menu.innerHTML = items.length
+          ? items
+              .map(
+                (c, i) =>
+                  `<button type="button" class="suggest-item${i === suggestIndex ? " actif" : ""}" data-i="${i}"><i class="${c.fonc ? "ri-functions" : ICONES_TYPE[typeBase(c.type)] || "ri-code-line"}"></i><span>${esc(c.libelle)}</span><small>${esc(c.colId)}</small></button>`,
+              )
+              .join("")
+          : `<p class="vide">Aucun champ ne correspond.</p>`;
+        menu.hidden = false;
+        const r = suggestProps.clientRect?.();
+        if (r) {
+          const h = menu.offsetHeight;
+          menu.style.left = `${Math.min(r.left, innerWidth - menu.offsetWidth - 8)}px`;
+          menu.style.top = `${r.bottom + 4 + h > innerHeight ? r.top - h - 4 : r.bottom + 4}px`;
+        }
+      }
+      function rendreSuggestion() {
+        return {
+          onStart(p) {
+            suggestProps = p;
+            suggestIndex = 0;
+            dessinerSuggestion();
+          },
+          onUpdate(p) {
+            suggestProps = p;
+            suggestIndex = 0;
+            dessinerSuggestion();
+          },
+          onKeyDown({ event }) {
+            if (!suggestProps) return false;
+            const n = suggestProps.items.length;
+            if (event.key === "ArrowDown" && n) {
+              suggestIndex = (suggestIndex + 1) % n;
+              dessinerSuggestion();
+              return true;
+            }
+            if (event.key === "ArrowUp" && n) {
+              suggestIndex = (suggestIndex - 1 + n) % n;
+              dessinerSuggestion();
+              return true;
+            }
+            if ((event.key === "Enter" || event.key === "Tab") && n) {
+              suggestProps.command(suggestProps.items[suggestIndex]);
+              return true;
+            }
+            if (event.key === "Escape") {
+              $("menu-suggest").hidden = true;
+              return true;
+            }
+            return false;
+          },
+          onExit() {
+            suggestProps = null;
+            $("menu-suggest").hidden = true;
+          },
+        };
+      }
+      $("menu-suggest").addEventListener("mousedown", (e) => {
+        const b = e.target.closest("[data-i]");
+        if (!b || !suggestProps) return;
+        e.preventDefault();
+        suggestProps.command(suggestProps.items[Number(b.dataset.i)]);
+      });
+
+      // ════════════════════════════════════════════════════════════════
+      // Éditeur TipTap
+      // ════════════════════════════════════════════════════════════════
+      function peindreTag(dom) {
+        const ref = dom.dataset.colref ? Number(dom.dataset.colref) : null;
+        const fonc = dom.dataset.fonc || null;
+        const fmt = dom.dataset.fmt || "";
+        const col = COLS.get(ref);
+        const orpheline = ref !== null && !col;
+        dom.className = `balise${fonc ? " balise-agg" : ""}${orpheline ? " balise-orpheline" : ""}`;
+        const libelle = libelleBalise(ref, fonc, dom.dataset.label);
+        const formats = formatsPour(ref, fonc);
+        dom.innerHTML =
+          esc(libelle) +
+          (fmt && formats?.[fmt] ? ` <em>· ${esc(formats[fmt])}</em>` : "");
+        dom.title = orpheline
+          ? "Ce champ n'existe pas dans la table source"
+          : "Cliquez pour régler le format";
+      }
+      function rafraichirTags() {
+        editor?.view.dom.querySelectorAll(".balise").forEach(peindreTag);
+      }
+
+      async function initEditeur() {
+        const [core, sk, im, tb, al, sg] = await Promise.all(
+          Object.values(TIPTAP_URLS).map((u) => import(u)),
+        );
+        const { Editor, Node, mergeAttributes } = core;
+        const StarterKit = sk.StarterKit ?? sk.default;
+        const Suggestion = sg.Suggestion ?? sg.default;
+
+        const Balise = Node.create({
+          name: "balise",
+          group: "inline",
+          inline: true,
+          atom: true,
+          selectable: true,
+          draggable: true,
+          addAttributes() {
+            return {
+              colRef: {
+                default: null,
+                parseHTML: (el) =>
+                  Number(el.getAttribute("data-colref")) || null,
+                renderHTML: (a) =>
+                  a.colRef ? { "data-colref": a.colRef } : {},
+              },
+              fonc: {
+                default: null,
+                parseHTML: (el) => el.getAttribute("data-fonc") || null,
+                renderHTML: (a) => (a.fonc ? { "data-fonc": a.fonc } : {}),
+              },
+              fmt: {
+                default: null,
+                parseHTML: (el) => el.getAttribute("data-fmt") || null,
+                renderHTML: (a) => (a.fmt ? { "data-fmt": a.fmt } : {}),
+              },
+              siVide: {
+                default: null,
+                parseHTML: (el) => el.getAttribute("data-vide") || null,
+                renderHTML: (a) => (a.siVide ? { "data-vide": a.siVide } : {}),
+              },
+              label: {
+                default: "",
+                parseHTML: (el) =>
+                  el.getAttribute("data-label") || el.textContent,
+                renderHTML: (a) => ({ "data-label": a.label }),
+              },
+            };
+          },
+          parseHTML() {
+            return [{ tag: "span[data-colref]" }, { tag: "span[data-fonc]" }];
+          },
+          renderHTML({ node, HTMLAttributes }) {
+            return [
+              "span",
+              mergeAttributes(HTMLAttributes, { class: "balise" }),
+              libelleBalise(
+                node.attrs.colRef,
+                node.attrs.fonc,
+                node.attrs.label,
+              ),
+            ];
+          },
+          renderText({ node }) {
+            return `[${libelleBalise(node.attrs.colRef, node.attrs.fonc, node.attrs.label)}]`;
+          },
+          addNodeView() {
+            return ({ node, getPos }) => {
+              const dom = document.createElement("span");
+              dom.contentEditable = "false";
+              const peindre = (n) => {
+                for (const [k, a] of [
+                  ["colRef", "colref"],
+                  ["fonc", "fonc"],
+                  ["fmt", "fmt"],
+                  ["siVide", "vide"],
+                ]) {
+                  if (n.attrs[k]) dom.dataset[a] = n.attrs[k];
+                  else delete dom.dataset[a];
+                }
+                dom.dataset.label = n.attrs.label;
+                peindreTag(dom);
+              };
+              peindre(node);
+              dom.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                ouvrirReglagesBalise(
+                  typeof getPos === "function" ? getPos() : null,
+                );
+              });
+              return {
+                dom,
+                update: (n) =>
+                  n.type.name === "balise" ? (peindre(n), true) : false,
+              };
+            };
+          },
+          addProseMirrorPlugins() {
+            return [
+              Suggestion({
+                editor: this.editor,
+                char: "@",
+                items: ({ query }) => itemsSuggestion(query),
+                command: ({ editor: ed, range, props }) =>
+                  insererBalise(props, ed.chain().focus().deleteRange(range)),
+                render: rendreSuggestion,
+              }),
+            ];
+          },
+        });
+
+        const SautPage = Node.create({
+          name: "sautPage",
+          group: "block",
+          atom: true,
+          selectable: true,
+          parseHTML() {
+            return [{ tag: "div[data-saut-page]" }];
+          },
+          renderHTML() {
+            return ["div", { "data-saut-page": "", class: "saut-page" }];
+          },
+        });
+
+        // Bloc affiché seulement si sa condition est vraie
+        const BlocConditionnel = Node.create({
+          name: "blocCond",
+          group: "block",
+          content: "block+",
+          defining: true,
+          addAttributes() {
+            return {
+              colRef: {
+                default: null,
+                parseHTML: (el) =>
+                  Number(el.getAttribute("data-cond-col")) || null,
+                renderHTML: (a) => ({ "data-cond-col": a.colRef }),
+              },
+              op: {
+                default: "rempli",
+                parseHTML: (el) => el.getAttribute("data-cond-op") || "rempli",
+                renderHTML: (a) => ({ "data-cond-op": a.op }),
+              },
+              valeur: {
+                default: "",
+                parseHTML: (el) => el.getAttribute("data-cond-val") || "",
+                renderHTML: (a) => ({ "data-cond-val": a.valeur }),
+              },
+            };
+          },
+          parseHTML() {
+            return [{ tag: "div[data-cond-col]" }];
+          },
+          renderHTML({ HTMLAttributes }) {
+            return [
+              "div",
+              mergeAttributes(HTMLAttributes, { class: "bloc-cond" }),
+              0,
+            ];
+          },
+          addNodeView() {
+            return ({ node, getPos }) => {
+              const dom = document.createElement("div");
+              dom.className = "bloc-cond";
+              const contenu = document.createElement("div");
+              dom.appendChild(contenu);
+              const peindre = (n) => {
+                dom.dataset.condCol = n.attrs.colRef ?? "";
+                dom.dataset.condOp = n.attrs.op;
+                dom.dataset.condVal = n.attrs.valeur ?? "";
+                dom.setAttribute("data-resume", resumeCondition(n.attrs));
+              };
+              peindre(node);
+              dom.addEventListener("click", (e) => {
+                if (e.target !== dom) return;
+                e.preventDefault();
+                ouvrirReglagesCondition(
+                  typeof getPos === "function" ? getPos() : null,
+                );
+              });
+              return {
+                dom,
+                contentDOM: contenu,
+                update: (n) =>
+                  n.type.name === "blocCond" ? (peindre(n), true) : false,
+              };
+            };
+          },
+        });
+
+        const ImagePJ = im.Image.extend({
+          addAttributes() {
+            return {
+              ...this.parent?.(),
+              att: {
+                default: null,
+                parseHTML: (el) => Number(el.getAttribute("data-att")) || null,
+                renderHTML: (a) => (a.att ? { "data-att": a.att } : {}),
+              },
+              align: {
+                default: null,
+                parseHTML: (el) => el.getAttribute("data-align"),
+                renderHTML: (a) => (a.align ? { "data-align": a.align } : {}),
+              },
+            };
+          },
+        }).configure({
+          resize: {
+            enabled: true,
+            directions: ["bottom-right", "bottom-left"],
+            minWidth: 30,
+            alwaysPreserveAspectRatio: true,
+          },
+        });
+
+        const LigneRepetee = tb.TableRow.extend({
+          addAttributes() {
+            return {
+              ...this.parent?.(),
+              repete: {
+                default: false,
+                parseHTML: (el) => el.hasAttribute("data-repete"),
+                renderHTML: (a) => (a.repete ? { "data-repete": "" } : {}),
+              },
+            };
+          },
+        });
+
+        editor = new Editor({
+          element: $("editeur"),
+          extensions: [
+            StarterKit.configure({ link: { openOnClick: false } }),
+            al.TextAlign.configure({ types: ["heading", "paragraph"] }),
+            tb.Table.configure({ resizable: true }),
+            LigneRepetee,
+            tb.TableHeader,
+            tb.TableCell,
+            ImagePJ,
+            Balise,
+            SautPage,
+            BlocConditionnel,
+          ],
+          content: CONTENU_VIDE,
+        });
+        editor.on("transaction", majOutils);
+        editor.on("update", marquerModifie);
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // Réglages d'une balise
+      // ════════════════════════════════════════════════════════════════
+      function placerPop(pop, cible) {
+        pop.hidden = false;
+        const r = cible.getBoundingClientRect();
+        const h = pop.offsetHeight;
+        pop.style.left = `${Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8))}px`;
+        pop.style.top = `${r.bottom + 6 + h > innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6}px`;
+      }
+      function fermerReglages() {
+        $("pop-balise").hidden = true;
+        $("pop-condition").hidden = true;
+        baliseEnCours = null;
+        condEnCours = null;
+      }
+      function ouvrirReglagesBalise(pos) {
+        if (pos === null || !modele) return;
+        const node = editor.state.doc.nodeAt(pos);
+        if (!node || node.type.name !== "balise") return;
+        fermerReglages();
+        baliseEnCours = { pos, attrs: node.attrs };
+        const { colRef, fonc, fmt, siVide, label } = node.attrs;
+        $("bal-titre").textContent = libelleBalise(colRef, fonc, label);
+        const formats = formatsPour(colRef, fonc);
+        $("bal-champ-format").hidden = !formats;
+        if (formats) {
+          $("bal-format").innerHTML = Object.entries(formats)
+            .map(([k, v]) => `<option value="${k}">${esc(v)}</option>`)
+            .join("");
+          $("bal-format").value = fmt && formats[fmt] ? fmt : "";
+        }
+        $("bal-vide").value = siVide || "";
+        const dom = editor.view.nodeDOM(pos) || editor.view.dom;
+        placerPop($("pop-balise"), dom);
+      }
+      function majBalise(champs) {
+        if (!baliseEnCours) return;
+        const { pos } = baliseEnCours;
+        const node = editor.state.doc.nodeAt(pos);
+        if (!node || node.type.name !== "balise") return fermerReglages();
+        const attrs = { ...node.attrs, ...champs };
+        editor.view.dispatch(
+          editor.state.tr.setNodeMarkup(pos, undefined, attrs),
+        );
+        baliseEnCours = { pos, attrs };
+        if (enApercu) rafraichirApercu();
+      }
+      $("bal-format").addEventListener("change", (e) =>
+        majBalise({ fmt: e.target.value || null }),
+      );
+      $("bal-vide").addEventListener("change", (e) =>
+        majBalise({ siVide: e.target.value || null }),
+      );
+      $("bal-fermer").addEventListener("click", fermerReglages);
+
+      // ════════════════════════════════════════════════════════════════
+      // Réglages d'un bloc conditionnel
+      // ════════════════════════════════════════════════════════════════
+      function positionBloc() {
+        const { $from } = editor.state.selection;
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === "blocCond")
+            return { pos: $from.before(d), node: $from.node(d) };
+        }
+        return null;
+      }
+      function operateursPour(col) {
+        const t = col ? typeBase(col.type) : "Text";
+        if (t === "Bool") return ["vrai", "faux"];
+        if (["Numeric", "Int", "Date", "DateTime"].includes(t))
+          return [
+            "rempli",
+            "vide",
+            "egal",
+            "different",
+            "superieur",
+            "inferieur",
+          ];
+        return ["rempli", "vide", "egal", "different", "contient"];
+      }
+      function ouvrirReglagesCondition(pos) {
+        if (pos === null) return;
+        const node = editor.state.doc.nodeAt(pos);
+        if (!node || node.type.name !== "blocCond") return;
+        fermerReglages();
+        condEnCours = { pos };
+        $("cond-col").innerHTML = COLONNES.map(
+          (c) => `<option value="${c.ref}">${esc(c.label)}</option>`,
+        ).join("");
+        $("cond-col").value = node.attrs.colRef ?? COLONNES[0]?.ref ?? "";
+        majOperateurs(node.attrs.op);
+        $("cond-valeur").value = node.attrs.valeur || "";
+        const dom = editor.view.nodeDOM(pos) || editor.view.dom;
+        placerPop($("pop-condition"), dom);
+      }
+      function majOperateurs(choisi) {
+        const col = COLS.get(Number($("cond-col").value));
+        const ops = operateursPour(col);
+        $("cond-op").innerHTML = ops
+          .map((o) => `<option value="${o}">${esc(OPERATEURS[o])}</option>`)
+          .join("");
+        $("cond-op").value = ops.includes(choisi) ? choisi : ops[0];
+        $("cond-champ-valeur").hidden = OP_SANS_VALEUR.includes(
+          $("cond-op").value,
+        );
+      }
+      function majCondition() {
+        if (!condEnCours) return;
+        const { pos } = condEnCours;
+        const node = editor.state.doc.nodeAt(pos);
+        if (!node || node.type.name !== "blocCond") return fermerReglages();
+        $("cond-champ-valeur").hidden = OP_SANS_VALEUR.includes(
+          $("cond-op").value,
+        );
+        const attrs = {
+          colRef: Number($("cond-col").value) || null,
+          op: $("cond-op").value,
+          valeur: OP_SANS_VALEUR.includes($("cond-op").value)
+            ? ""
+            : $("cond-valeur").value,
+        };
+        editor.view.dispatch(
+          editor.state.tr.setNodeMarkup(pos, undefined, attrs),
+        );
+        if (enApercu) rafraichirApercu();
+      }
+      $("cond-col").addEventListener("change", () => {
+        majOperateurs($("cond-op").value);
+        majCondition();
+      });
+      $("cond-op").addEventListener("change", majCondition);
+      $("cond-valeur").addEventListener("change", majCondition);
+      $("cond-fermer").addEventListener("click", fermerReglages);
+      $("cond-supprimer").addEventListener("click", () => {
+        const bloc = condEnCours
+          ? {
+              pos: condEnCours.pos,
+              node: editor.state.doc.nodeAt(condEnCours.pos),
+            }
+          : positionBloc();
+        fermerReglages();
+        if (!bloc?.node) return;
+        const contenu = bloc.node.content;
+        editor.view.dispatch(
+          editor.state.tr.replaceWith(
+            bloc.pos,
+            bloc.pos + bloc.node.nodeSize,
+            contenu,
+          ),
+        );
+        editor.commands.focus();
+      });
+      $("btn-condition").addEventListener("click", () => {
+        if (!editor || !modele) return;
+        const existant = positionBloc();
+        if (existant) return ouvrirReglagesCondition(existant.pos);
+        if (!COLONNES.length)
+          return alerte("Choisissez d'abord une table source.", "warning");
+        editor
+          .chain()
+          .focus()
+          .wrapIn("blocCond", {
+            colRef: COLONNES[0].ref,
+            op: "rempli",
+            valeur: "",
+          })
+          .run();
+        const cree = positionBloc();
+        if (cree) ouvrirReglagesCondition(cree.pos);
+      });
+
+      // ── Ligne répétée ──
+      function positionLigne() {
+        const { $from } = editor.state.selection;
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === "tableRow")
+            return { pos: $from.before(d), node: $from.node(d) };
+        }
+        return null;
+      }
+      $("btn-repetee").addEventListener("click", () => {
+        const l = positionLigne();
+        if (!l) return;
+        editor.view.dispatch(
+          editor.state.tr.setNodeMarkup(l.pos, undefined, {
+            ...l.node.attrs,
+            repete: !l.node.attrs.repete,
+          }),
+        );
+        editor.commands.focus();
+      });
+
+      // ── Barre d'outils ──
+      const CMD = {
+        annuler: (c) => c.undo(),
+        retablir: (c) => c.redo(),
+        gras: (c) => c.toggleBold(),
+        italique: (c) => c.toggleItalic(),
+        souligne: (c) => c.toggleUnderline(),
+        barre: (c) => c.toggleStrike(),
+        gauche: (c) => c.setTextAlign("left"),
+        centre: (c) => c.setTextAlign("center"),
+        droite: (c) => c.setTextAlign("right"),
+        justifie: (c) => c.setTextAlign("justify"),
+        puces: (c) => c.toggleBulletList(),
+        numeros: (c) => c.toggleOrderedList(),
+        tableau: (c) =>
+          c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }),
+        ligne: (c) => c.addRowAfter(),
+        colonne: (c) => c.addColumnAfter(),
+        supprLigne: (c) => c.deleteRow(),
+        supprColonne: (c) => c.deleteColumn(),
+        supprTableau: (c) => c.deleteTable(),
+        saut: (c) => c.insertContent({ type: "sautPage" }),
+        effacer: (c) => c.unsetAllMarks().clearNodes(),
+      };
+      const ACTIF = {
+        gras: ["bold"],
+        italique: ["italic"],
+        souligne: ["underline"],
+        barre: ["strike"],
+        gauche: [{ textAlign: "left" }],
+        centre: [{ textAlign: "center" }],
+        droite: [{ textAlign: "right" }],
+        justifie: [{ textAlign: "justify" }],
+        puces: ["bulletList"],
+        numeros: ["orderedList"],
+      };
+      const ALIGNEMENTS = {
+        gauche: "left",
+        centre: "center",
+        droite: "right",
+        justifie: null,
+      };
+      function majOutils() {
+        if (!editor || enApercu) return;
+        const dansTableau = editor.isActive("table");
+        document.querySelectorAll("#outils [data-cmd]").forEach((b) => {
+          const a = ACTIF[b.dataset.cmd];
+          b.classList.toggle("actif", !!a && editor.isActive(...a));
+          if (b.hasAttribute("data-table")) b.disabled = !dansTableau;
+          else if (b.dataset.cmd in ALIGNEMENTS) b.disabled = false;
+        });
+        if (editor.isActive("image")) {
+          const a = editor.getAttributes("image").align || "left";
+          for (const [cmd, val] of Object.entries(ALIGNEMENTS)) {
+            const bouton = document.querySelector(
+              `#outils [data-cmd="${cmd}"]`,
+            );
+            if (bouton) {
+              bouton.classList.toggle("actif", val === a);
+              bouton.disabled = val === null;
+            }
+          }
+        }
+        const ligne = positionLigne();
+        $("btn-repetee").disabled = !ligne;
+        $("btn-repetee").classList.toggle("actif", !!ligne?.node.attrs.repete);
+        $("btn-condition").classList.toggle("actif", !!positionBloc());
+        $("sel-style").value =
+          [1, 2, 3].find((n) => editor.isActive("heading", { level: n })) ??
+          "p";
+        $("btn-lien").classList.toggle("actif", editor.isActive("link"));
+      }
+      $("outils").addEventListener("mousedown", (e) => {
+        if (e.target.closest("button")) e.preventDefault();
+      });
+      $("outils").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-cmd]");
+        if (!b || !editor || b.disabled) return;
+        const cmd = b.dataset.cmd;
+        if (cmd in ALIGNEMENTS && editor.isActive("image")) {
+          const align = ALIGNEMENTS[cmd];
+          if (align !== null)
+            editor.chain().focus().updateAttributes("image", { align }).run();
+          return;
+        }
+        CMD[cmd](editor.chain().focus()).run();
+      });
+      $("sel-style").addEventListener("change", (e) => {
+        const v = e.target.value,
+          c = editor.chain().focus();
+        (v === "p"
+          ? c.setParagraph()
+          : c.setHeading({ level: Number(v) })
+        ).run();
+      });
+
+      // ── Menus flottants ──
+      function ouvrirPop(pop, bouton) {
+        document
+          .querySelectorAll(".pop:not(.suggest)")
+          .forEach((p) => p !== pop && (p.hidden = true));
+        pop.hidden = !pop.hidden;
+        if (pop.hidden) return;
+        const r = bouton.getBoundingClientRect();
+        pop.style.left = `${Math.min(r.left, innerWidth - pop.offsetWidth - 8)}px`;
+        pop.style.top = `${r.bottom + 4}px`;
+      }
+      document.addEventListener("mousedown", (e) => {
+        if (
+          e.target.closest(
+            ".pop, #btn-images, #btn-emoji, #btn-lien, #btn-condition, .balise, .bloc-cond",
+          )
+        )
+          return;
+        document
+          .querySelectorAll(".pop:not(.suggest)")
+          .forEach((p) => (p.hidden = true));
+        baliseEnCours = null;
+        condEnCours = null;
+      });
+
+      $("pop-emoji").innerHTML = EMOJIS.map(
+        (e) => `<button type="button">${e}</button>`,
+      ).join("");
+      $("pop-emoji").addEventListener("mousedown", (e) => e.preventDefault());
+      $("pop-emoji").addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if (b) {
+          editor.chain().focus().insertContent(b.textContent).run();
+          $("pop-emoji").hidden = true;
+        }
+      });
+      $("btn-emoji").addEventListener("click", () =>
+        ouvrirPop($("pop-emoji"), $("btn-emoji")),
+      );
+
+      $("btn-lien").addEventListener("click", () => {
+        const pop = $("pop-lien");
+        ouvrirPop(pop, $("btn-lien"));
+        if (pop.hidden) return;
+        $("champ-lien").value = editor.getAttributes("link").href || "";
+        $("btn-lien-suppr").disabled = !editor.isActive("link");
+        $("champ-lien").focus();
+      });
+      $("pop-lien").addEventListener("mousedown", (e) => {
+        if (e.target.tagName !== "INPUT") e.preventDefault();
+      });
+      function appliquerLien() {
+        let href = $("champ-lien").value.trim();
+        const c = editor.chain().focus().extendMarkRange("link");
+        if (!href) c.unsetLink().run();
+        else {
+          if (!/^(https?:|mailto:|tel:)/i.test(href)) href = `https://${href}`;
+          if (editor.state.selection.empty && !editor.isActive("link"))
+            c.insertContent(`<a href="${esc(href)}">${esc(href)}</a> `).run();
+          else c.setLink({ href }).run();
+        }
+        $("pop-lien").hidden = true;
+      }
+      $("btn-lien-ok").addEventListener("click", appliquerLien);
+      $("btn-lien-suppr").addEventListener("click", () => {
+        editor.chain().focus().extendMarkRange("link").unsetLink().run();
+        $("pop-lien").hidden = true;
+      });
+      $("champ-lien").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          appliquerLien();
+        }
+        if (e.key === "Escape") {
+          $("pop-lien").hidden = true;
+          editor.commands.focus();
+        }
+      });
+
+      $("btn-images").addEventListener("click", async () => {
+        const pop = $("pop-images");
+        if (!GALERIE.length) {
+          pop.innerHTML = `<p class="vide">Aucune image disponible. Déposez des fichiers dans la colonne ${COLS_MODELE.images} de la table ${TABLE_MODELES}, puis cliquez sur Actualiser.</p>`;
+          return ouvrirPop(pop, $("btn-images"));
+        }
+        pop.innerHTML = `<div class="galerie">${GALERIE.map((g) => `<button type="button" data-att="${g.id}" title="${esc(g.nom)}"><img alt="${esc(g.nom)}"></button>`).join("")}</div>`;
+        ouvrirPop(pop, $("btn-images"));
+        for (const b of pop.querySelectorAll("[data-att]")) {
+          urlPJ(Number(b.dataset.att))
+            .then((u) => (b.querySelector("img").src = u))
+            .catch(() => (b.title = "Image indisponible"));
+        }
+      });
+      $("pop-images").addEventListener("mousedown", (e) => e.preventDefault());
+      $("pop-images").addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-att]");
+        if (!b) return;
+        const id = Number(b.dataset.att),
+          img = b.querySelector("img");
+        const src = await urlPJ(id);
+        editor
+          .chain()
+          .focus()
+          .setImage({
+            src,
+            att: id,
+            alt: b.title,
+            width: img.naturalWidth ? Math.min(img.naturalWidth, 250) : 200,
+          })
+          .run();
+        $("pop-images").hidden = true;
+      });
+
+      // ════════════════════════════════════════════════════════════════
+      // Table source et enregistrements
+      // ════════════════════════════════════════════════════════════════
+      function tableParDefaut() {
+        return (
+          TABLES.find((t) => t.tableId === tableLiee)?.ref ??
+          TABLES[0]?.ref ??
+          null
+        );
+      }
+      async function choisirTable(ref) {
+        tableCourante = TABLES.find((t) => t.ref === ref) || null;
+        $("sel-table").value = tableCourante ? String(tableCourante.ref) : "";
+        COLONNES = tableCourante ? colonnesDe(tableCourante.ref) : [];
+        COLS = new Map(COLONNES.map((c) => [c.ref, c]));
+        afficherChamps();
+        afficherCalculs();
+        remplirColLibelle();
+        rafraichirTags();
+        await chargerEnregistrements();
+      }
+      async function chargerEnregistrements() {
+        const idCourant = enregistrements[index]?.id;
+        modeLie = !!tableCourante && tableLiee === tableCourante.tableId;
+        if (!tableCourante) enregistrements = [];
+        else if (modeLie) enregistrements = recsLies;
+        else {
+          statut("Chargement des données…");
+          enregistrements = colonnesEnLignes(
+            await grist.docApi.fetchTable(tableCourante.tableId),
+          );
+          statut("");
+        }
+        const i = enregistrements.findIndex((r) => r.id === idCourant);
+        index = i >= 0 ? i : 0;
+        majMode();
+        majNav();
+      }
+      function majMode() {
+        const b = $("badge-mode");
+        if (!tableCourante) {
+          b.className = "fr-badge fr-badge--sm";
+          b.textContent = "Aucune table";
+          return;
+        }
+        b.className = `fr-badge fr-badge--sm ${modeLie ? "fr-badge--info" : "fr-badge--new"}`;
+        b.textContent = modeLie ? "Suit la vue" : "Table indépendante";
+        b.title = modeLie
+          ? "Le widget suit la ligne sélectionnée et respecte les filtres de la vue."
+          : "Le widget n'est pas lié à cette table : choisissez l'enregistrement dans la liste.";
+      }
+      function majNav() {
+        const n = enregistrements.length;
+        $("sel-rec").innerHTML = n
+          ? enregistrements
+              .map(
+                (r, i) =>
+                  `<option value="${i}">${esc(libelleEnregistrement(r, i))}</option>`,
+              )
+              .join("")
+          : `<option>Aucun enregistrement</option>`;
+        $("sel-rec").value = String(index);
+        $("compteur").textContent = !n
+          ? ""
+          : estRapport()
+            ? `${n} ligne${n > 1 ? "s" : ""}`
+            : `${index + 1} / ${n}`;
+        if (!estRapport()) {
+          $("btn-prec").disabled = index <= 0;
+          $("btn-suiv").disabled = index >= n - 1;
+        }
+        $("btn-imprimer-tout").hidden = r;
+        $("btn-imprimer").innerHTML = r
+          ? `<i class="ri-printer-line"></i>&nbsp;Imprimer le rapport`
+          : `<i class="ri-printer-line"></i>&nbsp;Imprimer`;
+        majApercuNom();
+        if (enApercu) rafraichirApercu();
+      }
+      function allerA(i) {
+        if (estRapport() || i < 0 || i >= enregistrements.length) return;
+        index = i;
+        majNav();
+        if (modeLie)
+          grist.setCursorPos({ rowId: enregistrements[i].id }).catch(() => {});
+      }
+      $("btn-prec").addEventListener("click", () => allerA(index - 1));
+      $("btn-suiv").addEventListener("click", () => allerA(index + 1));
+      $("sel-rec").addEventListener("change", (e) =>
+        allerA(Number(e.target.value)),
+      );
+      $("sel-table").addEventListener("change", async (e) => {
+        await choisirTable(Number(e.target.value));
+        sauvegarder(true);
+      });
+
+      // ════════════════════════════════════════════════════════════════
+      // Rendu, aperçu et impression
+      // ════════════════════════════════════════════════════════════════
+      function cssContenu(s) {
+        return `
+  ${s} { font-family: "Marianne", arial, sans-serif; line-height: 1.5; color: #161616; }
+  ${s} h1 { font-size: 1.8em; line-height: 1.25; font-weight: 700; margin: 0 0 4mm; color: #161616; }
+  ${s} h2 { font-size: 1.35em; line-height: 1.3; font-weight: 700; margin: 5mm 0 3mm; color: #161616; }
+  ${s} h3 { font-size: 1.15em; line-height: 1.35; font-weight: 700; margin: 4mm 0 2mm; color: #161616; }
+  ${s} p { margin: 0 0 3mm; font-size: inherit; line-height: inherit; }
+  ${s} p:empty { min-height: 1.5em; }
+  ${s} ul, ${s} ol { margin: 0 0 3mm; padding-left: 6mm; }
+  ${s} ul { list-style-type: disc; }
+  ${s} ol { list-style-type: decimal; }
+  ${s} li { margin: 0; padding: 0; }
+  ${s} li::marker { font-weight: 400; }
+  ${s} li > p { margin: 0; }
+  ${s} table { border-collapse: collapse; margin: 0 0 3mm; }
+  ${s} th, ${s} td { border: 1px solid #929292; padding: 1.5mm 2.5mm; text-align: left; vertical-align: top; min-width: 2em; }
+  ${s} th { background: #EEEEEE; font-weight: 700; }
+  ${s} td > p, ${s} th > p { margin: 0; }
+  ${s} img { max-width: 100%; height: auto; display: block; }
+  ${s} img[data-align="center"] { margin-left: auto; margin-right: auto; }
+  ${s} img[data-align="right"] { margin-left: auto; margin-right: 0; }
+  ${s} [data-resize-container]:has(img[data-align="center"]) { margin-left: auto; margin-right: auto; width: fit-content; }
+  ${s} [data-resize-container]:has(img[data-align="right"]) { margin-left: auto; margin-right: 0; width: fit-content; }
+  ${s} a { color: #000091; }`;
+      }
+      document.head.insertAdjacentHTML(
+        "beforeend",
+        `<style>${cssContenu(".feuille .ProseMirror")}</style>`,
+      );
+
+      const POLICES_WOFF = `
+  @font-face { font-family: "Marianne"; font-weight: 400; src: url("${FONTS_URL}Marianne-Regular.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 400; font-style: italic; src: url("${FONTS_URL}Marianne-Regular_Italic.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 500; src: url("${FONTS_URL}Marianne-Medium.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 700; src: url("${FONTS_URL}Marianne-Bold.woff2") format("woff2"); }
+  @font-face { font-family: "Marianne"; font-weight: 700; font-style: italic; src: url("${FONTS_URL}Marianne-Bold_Italic.woff2") format("woff2"); }`;
+      const POLICES = [
+        "400 16px Marianne",
+        "italic 400 16px Marianne",
+        "700 16px Marianne",
+        "italic 700 16px Marianne",
+      ];
+
+      function cssImpression() {
+        const d = dimensions();
+        const m = mep.marges;
+        const boites = `${boitesMarge("top", mep.enTete)}\n    ${boitesMarge("bottom", mep.pied)}`;
+        const vides = `@top-left{content:none}@top-center{content:none}@top-right{content:none}
+                 @bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:none}`;
+        return `${POLICES_WOFF}
+  @page {
+    size: ${d.css}; margin: ${m.haut}mm ${m.droite}mm ${m.bas}mm ${m.gauche}mm;
+    ${boites}
+  }
+  ${mep.sansPremiere ? `@page :first { ${vides} }` : ""}
+  html, body { margin: 0; }
+  body { font-size: ${mep.police}pt; }
+  @media screen { body { width: ${d.l}mm; padding: ${m.haut}mm ${m.droite}mm ${m.bas}mm ${m.gauche}mm; box-sizing: border-box; } }
+  ${cssContenu("body")}
+  th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  thead { display: table-header-group; }
+  tr, img { break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+  .saut-page { break-before: page; height: 0; margin: 0; border: 0; }
+  .fiche + .fiche { break-before: page; }
+  .valeur { white-space: pre-line; }
+  .bloc-cond { border: 0; padding: 0; margin: 0; background: none; }`;
+      }
+      function documentImpression(corps) {
+        return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>${esc(modele?.[COLS_MODELE.nom] || "Document")}</title>
+    <style>${cssImpression()}</style></head><body>${corps}</body></html>`;
+      }
+      async function attendreRessources(doc) {
+        await Promise.all(
+          POLICES.map((f) => doc.fonts.load(f).catch(() => {})),
+        );
+        await doc.fonts.ready;
+        await Promise.all(
+          [...doc.images].map((i) => i.decode().catch(() => {})),
+        );
+      }
+      async function htmlModele() {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = editor.getHTML();
+        await Promise.all(
+          [...tmp.querySelectorAll("img[data-att]")].map(async (img) => {
+            try {
+              img.src = await urlPJ(Number(img.dataset.att));
+            } catch {
+              img.removeAttribute("src");
+              img.alt = "Image indisponible";
+            }
+          }),
+        );
+        return tmp.innerHTML;
+      }
+      // Retire les blocs dont la condition est fausse, déballe les autres
+      function appliquerConditions(racine, rec) {
+        let bloc;
+        while ((bloc = racine.querySelector("div[data-cond-col]"))) {
+          const attrs = {
+            colRef: Number(bloc.dataset.condCol) || null,
+            op: bloc.dataset.condOp || "rempli",
+            valeur: bloc.dataset.condVal || "",
+          };
+          if (!conditionVraie(attrs, rec)) {
+            bloc.remove();
+            continue;
+          }
+          const parent = bloc.parentNode;
+          while (bloc.firstChild) parent.insertBefore(bloc.firstChild, bloc);
+          bloc.remove();
+        }
+      }
+      function remplacerBalises(racine, rec, recs) {
+        racine
+          .querySelectorAll("span[data-colref], span[data-fonc]")
+          .forEach((el) => {
+            const ref = el.dataset.colref ? Number(el.dataset.colref) : null;
+            const fonc = el.dataset.fonc || null;
+            const fmt = el.dataset.fmt || "";
+            const siVide = el.dataset.vide || "";
+            const col = COLS.get(ref);
+            const span = document.createElement("span");
+            span.className = "valeur";
+            let txt;
+            if (fonc) txt = calculer(fonc, col, recs, fmt) || siVide;
+            else if (col) txt = valeurBalise(rec, col, fmt, siVide);
+            else txt = `[${el.dataset.label || "champ introuvable"}]`;
+            span.textContent = txt;
+            el.replaceWith(span);
+          });
+      }
+      function entetesRepetees(racine) {
+        racine.querySelectorAll("table").forEach((t) => {
+          if (t.querySelector("thead")) return;
+          const corps = t.querySelector("tbody");
+          const premiere = corps?.firstElementChild;
+          if (!premiere || !premiere.querySelector("th")) return;
+          const thead = document.createElement("thead");
+          thead.appendChild(premiere);
+          t.insertBefore(thead, corps);
+        });
+      }
+      function fusionner(html, rec) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        appliquerConditions(tmp, rec);
+        remplacerBalises(tmp, rec, [rec]);
+        entetesRepetees(tmp);
+        return tmp.innerHTML;
+      }
+      function fusionnerRapport(html, recs) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        const lignes = [...tmp.querySelectorAll("tr[data-repete]")];
+        lignes.forEach((tr) => {
+          const frag = document.createDocumentFragment();
+          recs.forEach((rec) => {
+            const copie = tr.cloneNode(true);
+            copie.removeAttribute("data-repete");
+            appliquerConditions(copie, rec);
+            remplacerBalises(copie, rec, recs);
+            frag.appendChild(copie);
+          });
+          tr.replaceWith(frag);
+        });
+        appliquerConditions(tmp, recs[0]);
+        remplacerBalises(tmp, recs[0], recs);
+        entetesRepetees(tmp);
+        return { html: tmp.innerHTML, lignesRepetees: lignes.length };
+      }
+      function verifierCoherence(html, recs) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        tmp.querySelectorAll("tr[data-repete]").forEach((tr) => tr.remove());
+        const refs = new Set(
+          [...tmp.querySelectorAll("span[data-colref]")]
+            .filter((el) => !el.dataset.fonc)
+            .map((el) => Number(el.dataset.colref)),
+        );
+        const ambigus = [...refs]
+          .map((r) => COLS.get(r))
+          .filter(Boolean)
+          .filter(
+            (col) =>
+              new Set(recs.map((rec) => formater(brute(rec, col), col))).size >
+              1,
+          );
+        return ambigus.map((c) => c.label);
+      }
+      // ════════════════════════════════════════════════════════════════
+      // Conversion du HTML fusionné en document pdfmake
+      // ════════════════════════════════════════════════════════════════
+      const PT = 2.834645669; // 1 mm en points
+      const PX = 0.75; // 1 px CSS en points
+      const TAILLES = { H1: 1.8, H2: 1.35, H3: 1.15 };
+
+      function stylesInline(el, herite = {}) {
+        const s = { ...herite };
+        const t = el.tagName;
+        if (t === "STRONG" || t === "B") s.bold = true;
+        if (t === "EM" || t === "I") s.italics = true;
+        if (t === "U") s.decoration = "underline";
+        if (t === "S" || t === "STRIKE" || t === "DEL")
+          s.decoration = s.decoration
+            ? [s.decoration, "lineThrough"]
+            : "lineThrough";
+        if (t === "A") {
+          s.link = el.getAttribute("href");
+          s.color = "#000091";
+          s.decoration = "underline";
+        }
+        return s;
+      }
+      function inlines(parent, herite = {}) {
+        const out = [];
+        for (const n of parent.childNodes) {
+          if (n.nodeType === 3) {
+            if (n.nodeValue) out.push({ text: n.nodeValue, ...herite });
+            continue;
+          }
+          if (n.nodeType !== 1) continue;
+          if (n.tagName === "BR") {
+            out.push({ text: "\n" });
+            continue;
+          }
+          if (n.tagName === "IMG") continue;
+          out.push(...inlines(n, stylesInline(n, herite)));
+        }
+        return out.length ? out : [{ text: "" }];
+      }
+      function alignementDe(el) {
+        const a = el.style?.textAlign;
+        return a && a !== "left"
+          ? { alignment: a === "justify" ? "justify" : a }
+          : {};
+      }
+      function imagePdf(img) {
+        const src = img.getAttribute("src");
+        if (!src || !src.startsWith("data:")) return null;
+        const larg = parseFloat(img.style.width) || img.naturalWidth || 0;
+        const bloc = { image: src, margin: [0, 0, 0, 3 * PT] };
+        if (larg) bloc.width = larg * PX;
+        const al = img.dataset.align;
+        if (al === "center" || al === "right") {
+          const vide = { text: "", width: "*" };
+          return {
+            columns:
+              al === "center"
+                ? [
+                    vide,
+                    { ...bloc, width: bloc.width, margin: [0, 0, 0, 0] },
+                    vide,
+                  ]
+                : [vide, { ...bloc, margin: [0, 0, 0, 0] }],
+            columnGap: 0,
+            margin: [0, 0, 0, 3 * PT],
+          };
+        }
+        return bloc;
+      }
+      function elementsListe(li, base) {
+        const parts = [];
+        for (const enf of li.children) parts.push(...blocPdf(enf, base));
+        if (!parts.length) return { text: inlines(li) };
+        if (parts.length === 1) {
+          const p = { ...parts[0] };
+          delete p.margin;
+          return p;
+        }
+        return { stack: parts };
+      }
+      function tablePdf(el, base) {
+        const lignes = [...el.querySelectorAll("tr")];
+        if (!lignes.length) return null;
+        const body = lignes.map((tr) =>
+          [...tr.children].map((cel) => {
+            const entete = cel.tagName === "TH";
+            const dedans = [...cel.children].flatMap((e) => blocPdf(e, base));
+            const contenu = dedans.length
+              ? dedans
+              : [
+                  {
+                    text: inlines(cel),
+                    ...alignementDe(cel.firstElementChild || cel),
+                  },
+                ];
+            const dernier = contenu.length - 1;
+            contenu.forEach((p, i) => {
+              if (i === dernier) p.margin = [0, 0, 0, 0];
+            });
+            const c = { stack: contenu };
+            if (entete) {
+              c.bold = true;
+              c.fillColor = "#EEEEEE";
+            }
+            const cs = Number(cel.getAttribute("colspan")) || 1;
+            const rs = Number(cel.getAttribute("rowspan")) || 1;
+            if (cs > 1) c.colSpan = cs;
+            if (rs > 1) c.rowSpan = rs;
+            return c;
+          }),
+        );
+        // pdfmake attend des cellules vides derrière une fusion
+        body.forEach((r) => {
+          for (let i = 0; i < r.length; i++) {
+            const cs = r[i].colSpan || 1;
+            for (let k = 1; k < cs; k++) r.splice(i + k, 0, {});
+            i += cs - 1;
+          }
+        });
+        const nb = Math.max(...body.map((r) => r.length));
+        body.forEach((r) => {
+          while (r.length < nb) r.push({});
+        });
+        const entetes = el.querySelector("thead")
+          ? el.querySelectorAll("thead tr").length
+          : 0;
+        return {
+          table: {
+            headerRows: entetes,
+            dontBreakRows: true,
+            widths: Array(nb).fill("*"),
+            body,
+          },
+          layout: {
+            hLineWidth: () => 0.7,
+            vLineWidth: () => 0.7,
+            hLineColor: () => "#929292",
+            vLineColor: () => "#929292",
+            paddingLeft: () => 2.5 * PT,
+            paddingRight: () => 2.5 * PT,
+            paddingTop: () => 1.5 * PT,
+            paddingBottom: () => 1.5 * PT,
+          },
+          margin: [0, 0, 0, 3 * PT],
+        };
+      }
+      function blocPdf(el, base) {
+        if (el.nodeType !== 1) return [];
+        const t = el.tagName;
+        if (el.dataset?.sautPage !== undefined)
+          return [{ text: "", pageBreak: "before" }];
+        if (t === "P" || t === "DIV") {
+          const img =
+            el.tagName === "P" ? null : el.querySelector(":scope > img");
+          if (img) {
+            const b = imagePdf(img);
+            return b ? [b] : [];
+          }
+          if (
+            t === "DIV" &&
+            el.children.length &&
+            ![...el.childNodes].some(
+              (n) => n.nodeType === 3 && n.nodeValue.trim(),
+            )
+          ) {
+            return [...el.children].flatMap((e) => blocPdf(e, base));
+          }
+          const contenu = inlines(el);
+          const vide = contenu.length === 1 && !contenu[0].text;
+          return [
+            {
+              text: contenu,
+              margin: [0, 0, 0, vide ? 1.5 * PT : 3 * PT],
+              ...alignementDe(el),
+            },
+          ];
+        }
+        if (t === "H1" || t === "H2" || t === "H3") {
+          const n = Number(t[1]);
+          return [
+            {
+              text: inlines(el),
+              fontSize: base * TAILLES[t],
+              bold: true,
+              margin: [0, n === 1 ? 0 : 5 * PT, 0, (n === 1 ? 4 : 3) * PT],
+              ...alignementDe(el),
+            },
+          ];
+        }
+        if (t === "UL")
+          return [
+            {
+              ul: [...el.children].map((li) => elementsListe(li, base)),
+              margin: [0, 0, 0, 3 * PT],
+            },
+          ];
+        if (t === "OL")
+          return [
+            {
+              ol: [...el.children].map((li) => elementsListe(li, base)),
+              margin: [0, 0, 0, 3 * PT],
+            },
+          ];
+        if (t === "TABLE") {
+          const b = tablePdf(el, base);
+          return b ? [b] : [];
+        }
+        if (t === "HR")
+          return [
+            {
+              canvas: [
+                {
+                  type: "line",
+                  x1: 0,
+                  y1: 0,
+                  x2: 515,
+                  y2: 0,
+                  lineWidth: 0.5,
+                  lineColor: "#DDDDDD",
+                },
+              ],
+              margin: [0, 2 * PT, 0, 4 * PT],
+            },
+          ];
+        if (t === "IMG") {
+          const b = imagePdf(el);
+          return b ? [b] : [];
+        }
+        if (t === "SECTION")
+          return [...el.children].flatMap((e) => blocPdf(e, base));
+        if (t === "BLOCKQUOTE")
+          return [...el.children]
+            .flatMap((e) => blocPdf(e, base))
+            .map((b) => ({ ...b, margin: [5 * PT, 0, 0, 3 * PT] }));
+        if (t === "PRE")
+          return [{ text: el.textContent, margin: [0, 0, 0, 3 * PT] }];
+        return [];
+      }
+      function zoneEntete(gabarits, page, total, haut) {
+        const pos = { g: "left", c: "center", d: "right" };
+        const rempli = (s) =>
+          String(s || "")
+            .replace(/\{page\}/g, page)
+            .replace(/\{pages\}/g, total)
+            .replace(/\{date\}/g, new Date().toLocaleDateString("fr-FR"))
+            .replace(/\{modele\}/g, modele?.[COLS_MODELE.nom] || "");
+        if (!Object.values(gabarits).some(Boolean)) return null;
+        return {
+          columns: ["g", "c", "d"].map((k) => ({
+            text: rempli(gabarits[k]),
+            width: "*",
+            alignment: pos[k],
+          })),
+          fontSize: 8,
+          color: "#666666",
+          margin: [mep.marges.gauche * PT, haut, mep.marges.droite * PT, 0],
+        };
+      }
+      function documentPdfmake(html) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        const sections = [...tmp.querySelectorAll(":scope > section.fiche")];
+        const racines = sections.length ? sections : [tmp];
+        const content = [];
+        racines.forEach((sec, i) => {
+          const blocs = [...sec.children].flatMap((e) =>
+            blocPdf(e, mep.police),
+          );
+          if (i > 0 && blocs.length)
+            blocs[0] = { ...blocs[0], pageBreak: "before" };
+          content.push(...blocs);
+        });
+        const d = dimensions();
+        const m = mep.marges;
+        const hautEntete = Math.max(8, m.haut * PT - 22);
+        return {
+          pageSize: (FORMATS[mep.format]?.css || "A4").toUpperCase(),
+          pageOrientation:
+            mep.orientation === "paysage" ? "landscape" : "portrait",
+          pageMargins: [m.gauche * PT, m.haut * PT, m.droite * PT, m.bas * PT],
+          defaultStyle: {
+            font: "Marianne",
+            fontSize: mep.police,
+            lineHeight: 1.35,
+            color: "#161616",
+          },
+          header: (page, total) => {
+            if (mep.sansPremiere && page === 1) return null;
+            return zoneEntete(mep.enTete, page, total, hautEntete);
+          },
+          footer: (page, total) => {
+            if (mep.sansPremiere && page === 1) return null;
+            return zoneEntete(
+              mep.pied,
+              page,
+              total,
+              Math.max(8, m.bas * PT - 26),
+            );
+          },
+          content: content.length ? content : [{ text: "" }],
+          info: {
+            title: modele?.[COLS_MODELE.nom] || "Document",
+            creator: "Publipostage PDF",
+          },
+        };
+      }
+      let policesPretes = false;
+      function preparerPdfmake() {
+        if (policesPretes) return;
+        if (!window.pdfMake) throw new Error("pdfmake n'est pas chargé.");
+        if (!window.pdfMakeMarianne)
+          throw new Error(
+            "Le fichier marianne.js est introuvable à côté de index.html.",
+          );
+        pdfMake.vfs = window.pdfMakeMarianne;
+        pdfMake.fonts = {
+          Marianne: {
+            normal: "Marianne-Regular.ttf",
+            bold: "Marianne-Bold.ttf",
+            italics: "Marianne-Italic.ttf",
+            bolditalics: "Marianne-BoldItalic.ttf",
+          },
+        };
+        policesPretes = true;
+      }
+      // Les images doivent être en base64 : les blob URL ne passent pas dans pdfmake
+      async function htmlPourPdf(recs) {
+        const html = await corpsDocument(recs);
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        await Promise.all(
+          [...tmp.querySelectorAll("img")].map(async (img) => {
+            const src = img.getAttribute("src");
+            if (!src || src.startsWith("data:")) return;
+            try {
+              const blob = await (await fetch(src)).blob();
+              img.setAttribute(
+                "src",
+                await new Promise((res, rej) => {
+                  const fr = new FileReader();
+                  fr.onload = () => res(fr.result);
+                  fr.onerror = rej;
+                  fr.readAsDataURL(blob);
+                }),
+              );
+            } catch {
+              img.remove();
+            }
+          }),
+        );
+        return tmp.innerHTML;
+      }
+      async function genererPdf(recs) {
+        preparerPdfmake();
+        return pdfMake.createPdf(documentPdfmake(await htmlPourPdf(recs)));
+      }
+
+      async function copierNom(nom) {
+        try {
+          await navigator.clipboard.writeText(nom.replace(/\.pdf$/, ""));
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      async function corpsDocument(recs) {
+        const base = await htmlModele();
+        if (!estRapport())
+          return recs
+            .map(
+              (r) => `<section class="fiche">${fusionner(base, r)}</section>`,
+            )
+            .join("");
+        const { html, lignesRepetees } = fusionnerRapport(base, recs);
+        if (!lignesRepetees)
+          alerte(
+            "Aucune ligne répétée : marquez une ligne de tableau avec le bouton Répéter pour lister les enregistrements.",
+            "warning",
+          );
+        else {
+          const ambigus = verifierCoherence(base, recs);
+          alerte(
+            ambigus.length
+              ? `Hors de la ligne répétée, ces champs varient d'une ligne à l'autre et n'affichent que la première valeur : ${ambigus.join(", ")}.`
+              : "",
+            "warning",
+          );
+        }
+        return `<section class="fiche">${html}</section>`;
+      }
+      async function imprimer(recs) {
+        statut("Préparation de l'impression…");
+        try {
+          const corps = await corpsDocument(recs);
+          $("frame-impression")?.remove();
+          const frame = document.createElement("iframe");
+          frame.id = "frame-impression";
+          frame.style.cssText =
+            "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+          const charge = new Promise((r) => (frame.onload = r));
+          frame.srcdoc = documentImpression(corps);
+          document.body.appendChild(frame);
+          await charge;
+          await attendreRessources(frame.contentDocument);
+          const unique = recs.length === 1 || estRapport();
+          const nom = unique
+            ? nomFichierCalcule(recs[0])
+            : `${(modele?.[COLS_MODELE.nom] || "documents").replace(/\s+/g, "_")}.pdf`;
+          const copie = await copierNom(nom);
+          statut(copie ? `Nom copié : ${nom}` : "");
+          frame.contentWindow.focus();
+          frame.contentWindow.print();
+          setTimeout(() => statut(""), 8000);
+        } catch (e) {
+          console.error(e);
+          statut("");
+          alerte(`Impression impossible : ${e.message}`);
+        }
+      }
+      async function rafraichirApercu() {
+        if (!enregistrements.length) return;
+        const f = $("apercu");
+        const charge = new Promise((r) => (f.onload = r));
+        f.srcdoc = documentImpression(
+          await corpsDocument(
+            estRapport() ? enregistrements : [enregistrements[index]],
+          ),
+        );
+        await charge;
+        await attendreRessources(f.contentDocument);
+        f.style.height = `${f.contentDocument.documentElement.scrollHeight}px`;
+      }
+      function basculerApercu() {
+        enApercu = !enApercu;
+        fermerReglages();
+        $("feuille").hidden = enApercu;
+        $("apercu").hidden = !enApercu;
+        $("outils")
+          .querySelectorAll("button, select")
+          .forEach((b) => (b.disabled = enApercu));
+        $("btn-apercu").innerHTML = enApercu
+          ? `<i class="ri-edit-line"></i>&nbsp;Modifier`
+          : `<i class="ri-eye-line"></i>&nbsp;Aperçu`;
+        if (enApercu) rafraichirApercu();
+        else {
+          majOutils();
+          $("btn-repetee").hidden = !estRapport();
+        }
+      }
+      $("btn-apercu").addEventListener("click", basculerApercu);
+
+      $("btn-pdf").addEventListener("click", async () => {
+        if (!enregistrements.length) return;
+        const recs = estRapport() ? enregistrements : [enregistrements[index]];
+        statut("Génération du PDF…");
+        try {
+          const pdf = await genererPdf(recs);
+          pdf.download(nomFichierCalcule(recs[0]));
+          statut("");
+        } catch (e) {
+          console.error(e);
+          statut("");
+          alerte(`Génération impossible : ${e.message}`);
+        }
+      });
+
+      $("btn-pdf-lot").addEventListener("click", async () => {
+        const n = enregistrements.length;
+        if (!n) return;
+        const separes = confirm(
+          `${n} enregistrement(s).\n\nOK : un fichier PDF par enregistrement, réunis dans un ZIP.\nAnnuler : un seul PDF de ${n} pages.`,
+        );
+        try {
+          if (!separes) {
+            statut("Génération du PDF…");
+            const pdf = await genererPdf(enregistrements);
+            pdf.download(
+              `${(modele?.[COLS_MODELE.nom] || "documents").replace(/\s+/g, "_")}.pdf`,
+            );
+            return statut("");
+          }
+          if (!window.JSZip) throw new Error("JSZip n'est pas chargé.");
+          const zip = new JSZip();
+          const utilises = new Map();
+          for (let i = 0; i < n; i++) {
+            statut(`Génération ${i + 1} / ${n}…`);
+            const pdf = await genererPdf([enregistrements[i]]);
+            const blob = await new Promise((r) => pdf.getBlob(r));
+            let nom = nomFichierCalcule(enregistrements[i]);
+            const vus = (utilises.get(nom) || 0) + 1;
+            utilises.set(nom, vus);
+            if (vus > 1) nom = nom.replace(/\.pdf$/, `-${vus}.pdf`);
+            zip.file(nom, blob);
+          }
+          statut("Compression…");
+          const archive = await zip.generateAsync({ type: "blob" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(archive);
+          a.download = `${(modele?.[COLS_MODELE.nom] || "documents").replace(/\s+/g, "_")}.zip`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+          statut(`${n} fichier(s) dans l'archive`);
+          setTimeout(() => statut(""), 6000);
+        } catch (e) {
+          console.error(e);
+          statut("");
+          alerte(`Génération impossible : ${e.message}`);
+        }
+      });
+
+      $("btn-imprimer").addEventListener("click", () => {
+        if (!enregistrements.length) return;
+        if (estRapport()) {
+          const n = enregistrements.length;
+          if (
+            n > 500 &&
+            !confirm(`Le rapport contient ${n} lignes. Continuer ?`)
+          )
+            return;
+          imprimer(enregistrements);
+        } else imprimer([enregistrements[index]]);
+      });
+      $("btn-imprimer-tout").addEventListener("click", () => {
+        const n = enregistrements.length;
+        if (
+          n > 100 &&
+          !confirm(
+            `Préparer un document de ${n} fiches ? Cela peut prendre un moment.`,
+          )
+        )
+          return;
+        imprimer(enregistrements);
+      });
+      $("btn-actualiser").addEventListener("click", async () => {
+        statut("Actualisation…");
+        try {
+          await sauvegarder();
+          await chargerMeta();
+          await chargerModeles();
+          await chargerGalerie();
+          remplirTables();
+          const id =
+            modele && MODELES.some((m) => m.id === modele.id)
+              ? modele.id
+              : (MODELES[0]?.id ?? null);
+          modele = null;
+          await ouvrirModele(id);
+          alerte("");
+        } catch (e) {
+          alerte(`Actualisation impossible : ${e.message}`);
+        }
+        statut("");
+      });
+
+      // ════════════════════════════════════════════════════════════════
+      // Grist
+      // ════════════════════════════════════════════════════════════════
+      function remplirTables() {
+        $("sel-table").innerHTML = TABLES.length
+          ? TABLES.map(
+              (t) => `<option value="${t.ref}">${esc(t.tableId)}</option>`,
+            ).join("")
+          : `<option value="">Aucune table</option>`;
+      }
+
+      console.log(`[publipostage] version ${VERSION} chargée`);
+      $("etat-sauvegarde").title = `Version ${VERSION}`;
+
+      grist.ready({ requiredAccess: "full" });
+
+      grist.onRecords(
+        async (recs) => {
+          recsLies = recs || [];
+          tableLiee = grist.getSelectedTableIdSync?.() ?? tableLiee;
+          if (pret && tableCourante && tableCourante.tableId === tableLiee)
+            await chargerEnregistrements();
+        },
+        { includeColumns: "normal" },
+      );
+
+      grist.onRecord(
+        (rec) => {
+          if (!pret || !modeLie || estRapport() || !rec) return;
+          const i = enregistrements.findIndex((r) => r.id === rec.id);
+          if (i >= 0 && i !== index) {
+            index = i;
+            majNav();
+          }
+        },
+        { includeColumns: "normal" },
+      );
+
+      async function init() {
+        statut("Chargement…");
+        try {
+          await chargerMeta();
+          await chargerModeles();
+        } catch (e) {
+          statut("");
+          return alerte(
+            /accès|access|permission/i.test(e.message)
+              ? "Le widget doit avoir l'accès complet au document (panneau de droite, « Accès du widget »)."
+              : e.message,
+          );
+        }
+        tableLiee = await Promise.race([
+          grist.getSelectedTableId(),
+          attendre(2500, null),
+        ]);
+        try {
+          await Promise.all([initEditeur(), chargerGalerie()]);
+        } catch (e) {
+          console.error(e);
+          statut("");
+          return alerte(`Chargement de l'éditeur impossible : ${e.message}`);
+        }
+        remplirTables();
+        const memorise = Number(memoire.lire("modele"));
+        const id = MODELES.some((m) => m.id === memorise)
+          ? memorise
+          : (MODELES.find(
+              (m) => nomTable(m[COLS_MODELE.tableRef]) === tableLiee,
+            )?.id ??
+            MODELES[0]?.id ??
+            null);
+        await ouvrirModele(id);
+        pret = true;
+        statut("");
+      }
+      init();
+    </script>
+  </body>
+</html>
