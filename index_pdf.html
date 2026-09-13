@@ -3570,8 +3570,11 @@
       let policesPretes = false;
       function preparerPdfmake() {
         if (policesPretes) return;
-        if (typeof pdfMake === "undefined")
-          throw new Error("pdfmake n'est pas chargé.");
+        const pm =
+          globalThis.pdfMake ||
+          (typeof pdfMake !== "undefined" ? pdfMake : null);
+        if (!pm) throw new Error("pdfmake n'est pas chargé.");
+        globalThis.pdfMake = pm;
         if (!window.pdfMakeMarianne)
           throw new Error(
             "Le fichier marianne.js est introuvable à côté du widget.",
