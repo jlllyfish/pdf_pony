@@ -3040,10 +3040,11 @@
           $("btn-prec").disabled = index <= 0;
           $("btn-suiv").disabled = index >= n - 1;
         }
-        $("btn-imprimer-tout").hidden = r;
-        $("btn-imprimer").innerHTML = r
-          ? `<i class="ri-printer-line"></i>&nbsp;Imprimer le rapport`
-          : `<i class="ri-printer-line"></i>&nbsp;Imprimer`;
+        ["btn-imprimer", "btn-imprimer-tout", "btn-pdf", "btn-pdf-lot"].forEach(
+          (b) => ($(b).disabled = !n),
+        );
+        $("btn-pdf-lot").innerHTML =
+          `<i class="ri-folder-zip-line"></i>&nbsp;Lot (${n})`;
         majApercuNom();
         if (enApercu) rafraichirApercu();
       }
@@ -3569,10 +3570,11 @@
       let policesPretes = false;
       function preparerPdfmake() {
         if (policesPretes) return;
-        if (!window.pdfMake) throw new Error("pdfmake n'est pas chargé.");
+        if (typeof pdfMake === "undefined")
+          throw new Error("pdfmake n'est pas chargé.");
         if (!window.pdfMakeMarianne)
           throw new Error(
-            "Le fichier marianne.js est introuvable à côté de index.html.",
+            "Le fichier marianne.js est introuvable à côté du widget.",
           );
         pdfMake.vfs = window.pdfMakeMarianne;
         pdfMake.fonts = {
@@ -3741,7 +3743,8 @@
             );
             return statut("");
           }
-          if (!window.JSZip) throw new Error("JSZip n'est pas chargé.");
+          if (typeof JSZip === "undefined")
+            throw new Error("JSZip n'est pas chargé.");
           const zip = new JSZip();
           const utilises = new Map();
           for (let i = 0; i < n; i++) {
