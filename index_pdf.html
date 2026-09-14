@@ -274,6 +274,9 @@
       #sel-style {
         width: 120px;
       }
+      #sel-taille {
+        width: 72px;
+      }
 
       /* ── Feuille ── */
       .defil {
@@ -641,6 +644,21 @@
             <option value="2">Titre 2</option>
             <option value="3">Titre 3</option>
           </select>
+          <select id="sel-taille" class="sel" title="Taille du texte">
+            <option value="">Taille</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="14">14</option>
+            <option value="16">16</option>
+            <option value="18">18</option>
+            <option value="20">20</option>
+            <option value="24">24</option>
+            <option value="28">28</option>
+            <option value="32">32</option>
+          </select>
           <span class="sep"></span>
           <button class="tb" data-cmd="gras" title="Gras (Ctrl+B)">
             <i class="ri-bold"></i>
@@ -929,7 +947,7 @@
       // ════════════════════════════════════════════════════════════════
       // Configuration
       // ════════════════════════════════════════════════════════════════
-      const VERSION = "p7.1";
+      const VERSION = "p7.3";
       const TABLE_MODELES = "Modeles_PDF";
       const COLS_MODELE = {
         nom: "Nom",
@@ -949,6 +967,7 @@
         image: `https://esm.sh/@tiptap/extension-image@${TIPTAP_VERSION}`,
         table: `https://esm.sh/@tiptap/extension-table@${TIPTAP_VERSION}`,
         align: `https://esm.sh/@tiptap/extension-text-align@${TIPTAP_VERSION}`,
+        style: `https://esm.sh/@tiptap/extension-text-style@${TIPTAP_VERSION}`,
         suggestion: `https://esm.sh/@tiptap/suggestion@${TIPTAP_VERSION}`,
       };
       const FONTS_URL =
@@ -1134,10 +1153,6 @@
               "'": "&#39;",
             })[c],
         );
-      const escCss = (s) =>
-        String(s ?? "")
-          .replace(/\\/g, "\\\\")
-          .replace(/"/g, '\\"');
       const norm = (s) =>
         String(s ?? "")
           .normalize("NFD")
@@ -1685,35 +1700,6 @@
         );
         $("apercu").style.width = `${d.l}mm`;
         $("apercu").style.minHeight = `${d.h}mm`;
-      }
-      function contenuCss(gabarit) {
-        if (!gabarit) return "none";
-        const parts = [];
-        const regex = /\{(page|pages)\}/g;
-        let dernier = 0,
-          m;
-        const texte = gabarit
-          .replace(/\{date\}/g, new Date().toLocaleDateString("fr-FR"))
-          .replace(/\{modele\}/g, modele?.[COLS_MODELE.nom] || "");
-        while ((m = regex.exec(texte))) {
-          if (m.index > dernier)
-            parts.push(`"${escCss(texte.slice(dernier, m.index))}"`);
-          parts.push(m[1] === "page" ? "counter(page)" : "counter(pages)");
-          dernier = m.index + m[0].length;
-        }
-        if (dernier < texte.length)
-          parts.push(`"${escCss(texte.slice(dernier))}"`);
-        return parts.length ? parts.join(" ") : "none";
-      }
-      function boitesMarge(prefixe, zones) {
-        const pos = { g: "left", c: "center", d: "right" };
-        return Object.entries(zones)
-          .filter(([, v]) => v)
-          .map(
-            ([k, v]) =>
-              `@${prefixe}-${pos[k]} { content: ${contenuCss(v)}; font: 8pt "Marianne", arial, sans-serif; color: #666; }`,
-          )
-          .join("\n    ");
       }
       function nomFichierCalcule(rec) {
         const gabarit = modeleNomFichier.trim() || "{modele}";
@@ -2327,7 +2313,7 @@
       }
 
       async function initEditeur() {
-        const [core, sk, im, tb, al, sg] = await Promise.all(
+        const [core, sk, im, tb, al, sg, ts] = await Promise.all(
           Object.values(TIPTAP_URLS).map((u) => import(u)),
         );
         const { Editor, Node, mergeAttributes } = core;
@@ -2557,6 +2543,8 @@
           element: $("editeur"),
           extensions: [
             StarterKit.configure({ link: { openOnClick: false } }),
+            ts.TextStyle,
+            ts.FontSize,
             al.TextAlign.configure({ types: ["heading", "paragraph"] }),
             tb.Table.configure({ resizable: true }),
             LigneRepetee,
@@ -2837,6 +2825,9 @@
           [1, 2, 3].find((n) => editor.isActive("heading", { level: n })) ??
           "p";
         $("btn-lien").classList.toggle("actif", editor.isActive("link"));
+        $("sel-taille").value = (
+          editor.getAttributes("textStyle").fontSize || ""
+        ).replace("pt", "");
       }
       $("outils").addEventListener("mousedown", (e) => {
         if (e.target.closest("button")) e.preventDefault();
@@ -2860,6 +2851,11 @@
           ? c.setParagraph()
           : c.setHeading({ level: Number(v) })
         ).run();
+      });
+      $("sel-taille").addEventListener("change", (e) => {
+        const v = e.target.value;
+        const c = editor.chain().focus();
+        (v ? c.setFontSize(`${v}pt`) : c.unsetFontSize()).run();
       });
 
       // ── Menus flottants ──
@@ -3084,7 +3080,8 @@
   ${s} img[data-align="right"] { margin-left: auto; margin-right: 0; }
   ${s} [data-resize-container]:has(img[data-align="center"]) { margin-left: auto; margin-right: auto; width: fit-content; }
   ${s} [data-resize-container]:has(img[data-align="right"]) { margin-left: auto; margin-right: 0; width: fit-content; }
-  ${s} a { color: #000091; }`;
+  ${s} a { color: #000091; }
+  ${s} [style*="font-size"] { line-height: 1.35; }`;
       }
       document.head.insertAdjacentHTML(
         "beforeend",
@@ -3249,6 +3246,9 @@
           s.color = "#000091";
           s.decoration = "underline";
         }
+        const taille = parseFloat(el.style?.fontSize);
+        if (taille)
+          s.fontSize = el.style.fontSize.includes("px") ? taille * PX : taille;
         return s;
       }
       function inlines(parent, herite = {}) {
