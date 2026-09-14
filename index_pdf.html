@@ -2313,13 +2313,25 @@
       }
 
       async function initEditeur() {
-        const [core, sk, im, tb, al, sg, ts] = await Promise.all(
-          Object.values(TIPTAP_URLS).map((u) => import(u)),
+        // Chargement par nom : l'ordre des clés de TIPTAP_URLS n'a plus d'importance
+        const mods = Object.fromEntries(
+          await Promise.all(
+            Object.entries(TIPTAP_URLS).map(async ([k, u]) => [
+              k,
+              await import(u),
+            ]),
+          ),
         );
+        const core = mods.core,
+          sk = mods.starter,
+          im = mods.image,
+          tb = mods.table,
+          al = mods.align,
+          sg = mods.suggestion,
+          ts = mods.style;
         const { Editor, Node, mergeAttributes } = core;
         const StarterKit = sk.StarterKit ?? sk.default;
         const Suggestion = sg.Suggestion ?? sg.default;
-
         const Balise = Node.create({
           name: "balise",
           group: "inline",
