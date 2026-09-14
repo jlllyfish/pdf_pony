@@ -295,13 +295,16 @@
       }
       .defil.mode-apercu {
         padding: 0;
-        display: flex;
+        display: block;
         overflow: hidden;
+        position: relative;
       }
       #apercu {
         display: block;
-        flex: 1;
+        position: absolute;
+        inset: 0;
         width: 100%;
+        height: 100%;
         border: 0;
         background: #525659;
       }
@@ -645,7 +648,7 @@
             <option value="3">Titre 3</option>
           </select>
           <select id="sel-taille" class="sel" title="Taille du texte">
-            <option value="">Taille</option>
+            <option value="">Par défaut</option>
             <option value="8">8</option>
             <option value="9">9</option>
             <option value="10">10</option>
@@ -947,7 +950,7 @@
       // ════════════════════════════════════════════════════════════════
       // Configuration
       // ════════════════════════════════════════════════════════════════
-      const VERSION = "p7.3";
+      const VERSION = "p7.5";
       const TABLE_MODELES = "Modeles_PDF";
       const COLS_MODELE = {
         nom: "Nom",
@@ -1698,8 +1701,6 @@
           "min-height",
           `${Math.max(util, 20)}mm`,
         );
-        $("apercu").style.width = `${d.l}mm`;
-        $("apercu").style.minHeight = `${d.h}mm`;
       }
       function nomFichierCalcule(rec) {
         const gabarit = modeleNomFichier.trim() || "{modele}";
@@ -2837,9 +2838,19 @@
           [1, 2, 3].find((n) => editor.isActive("heading", { level: n })) ??
           "p";
         $("btn-lien").classList.toggle("actif", editor.isActive("link"));
-        $("sel-taille").value = (
+        // Sans taille explicite, on affiche celle de la mise en page
+        const tailleTexte = (
           editor.getAttributes("textStyle").fontSize || ""
         ).replace("pt", "");
+        const sel = $("sel-taille");
+        sel.options[0].textContent = `Par défaut (${mep.police})`;
+        if (
+          tailleTexte &&
+          ![...sel.options].some((o) => o.value === tailleTexte)
+        ) {
+          sel.add(new Option(tailleTexte, tailleTexte), 1);
+        }
+        sel.value = tailleTexte;
       }
       $("outils").addEventListener("mousedown", (e) => {
         if (e.target.closest("button")) e.preventDefault();
