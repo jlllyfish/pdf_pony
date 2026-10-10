@@ -1654,10 +1654,10 @@ function remplacerBalises(racine, rec, recs) {
 }
 function entetesRepetees(racine) {
   racine.querySelectorAll("table").forEach((t) => {
-    if (t.querySelector("thead")) return;
-    const corps = t.querySelector("tbody");
+    if (t.querySelector(":scope > thead")) return;
+    const corps = t.querySelector(":scope > tbody");
     const premiere = corps?.firstElementChild;
-    if (!premiere || !premiere.querySelector("th")) return;
+    if (!premiere || !premiere.querySelector(":scope > th")) return;
     const thead = document.createElement("thead");
     thead.appendChild(premiere);
     t.insertBefore(thead, corps);
@@ -1780,7 +1780,8 @@ function elementsListe(li, base) {
   return { stack: parts };
 }
 function tablePdf(el, base) {
-  const lignes = [...el.querySelectorAll("tr")];
+  // :scope : ne pas aspirer les lignes d'un tableau imbriqué
+  const lignes = [...el.querySelectorAll(":scope > tr, :scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr")];
   if (!lignes.length) return null;
   const body = lignes.map((tr) => [...tr.children].map((cel) => {
     const entete = cel.tagName === "TH";
@@ -1799,9 +1800,10 @@ function tablePdf(el, base) {
   body.forEach((r) => { for (let i = 0; i < r.length; i++) { const cs = r[i].colSpan || 1; for (let k = 1; k < cs; k++) r.splice(i + k, 0, {}); i += cs - 1; } });
   const nb = Math.max(...body.map((r) => r.length));
   body.forEach((r) => { while (r.length < nb) r.push({}); });
-  const entetes = el.querySelector("thead") ? el.querySelectorAll("thead tr").length : 0;
+  const entetes = el.querySelectorAll(":scope > thead > tr").length;
   return {
-    table: { headerRows: entetes, dontBreakRows: true, widths: Array(nb).fill("*"), body },
+    // dontBreakRows tronque toute ligne plus haute qu'une page (ex. tableau imbriqué) : on ne l'active que sans imbrication
+    table: { headerRows: entetes, dontBreakRows: !el.querySelector("table"), widths: Array(nb).fill("*"), body },
     layout: { hLineWidth: () => 0.7, vLineWidth: () => 0.7, hLineColor: () => "#929292", vLineColor: () => "#929292",
               paddingLeft: () => 2.5 * PT, paddingRight: () => 2.5 * PT, paddingTop: () => 1.5 * PT, paddingBottom: () => 1.5 * PT },
     margin: [0, 0, 0, 3 * PT],
