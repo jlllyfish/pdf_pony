@@ -313,7 +313,7 @@
 // ════════════════════════════════════════════════════════════════
 // Configuration
 // ════════════════════════════════════════════════════════════════
-const VERSION = "p7.5";
+const VERSION = "p7.6";
 const TABLE_MODELES = "Modeles_PDF";
 const COLS_MODELE = { nom: "Nom", contenu: "Contenu", tableRef: "Table_cible", tableNom: "Table_cible_nom",
                       images: "Images", mode: "Mode", nomFichier: "Nom_fichier", miseEnPage: "Mise_en_page" };
@@ -446,15 +446,18 @@ const memoire = {
 // ════════════════════════════════════════════════════════════════
 let JETON = null;
 const CACHE_PJ = new Map();
+// Jeton non restreint : en lecture seule, Grist traite l'utilisateur comme lecteur (viewer)
+// et refuse les pièces jointes (403 « Cannot access attachment ») dès que des règles
+// d'accès limitent les lecteurs. Le widget a de toute façon l'accès complet.
 function jeton() {
-  if (!JETON) JETON = grist.docApi.getAccessToken({ readOnly: true }).catch((e) => { JETON = null; throw e; });
+  if (!JETON) JETON = grist.docApi.getAccessToken({ readOnly: false }).catch((e) => { JETON = null; throw e; });
   return JETON;
 }
 async function telechargerPJ(id, reessai = true) {
   const { token, baseUrl } = await jeton();
   const r = await fetch(`${baseUrl}/attachments/${id}/download?auth=${token}`);
   if ((r.status === 401 || r.status === 403) && reessai) { JETON = null; return telechargerPJ(id, false); }
-  if (!r.ok) throw new Error(`Pièce jointe ${id} : HTTP ${r.status}`);
+  if (!r.ok) throw new Error(`Pièce jointe ${id} : HTTP ${r.status} ${(await r.text().catch(() => "")).slice(0, 120)}`);
   return URL.createObjectURL(await r.blob());
 }
 function urlPJ(id) {
@@ -1503,7 +1506,8 @@ $("btn-images").addEventListener("click", async () => {
   pop.innerHTML = `<div class="galerie">${GALERIE.map((g) => `<button type="button" data-att="${g.id}" title="${esc(g.nom)}"><img alt="${esc(g.nom)}"></button>`).join("")}</div>`;
   ouvrirPop(pop, $("btn-images"));
   for (const b of pop.querySelectorAll("[data-att]")) {
-    urlPJ(Number(b.dataset.att)).then((u) => (b.querySelector("img").src = u)).catch(() => (b.title = "Image indisponible"));
+    urlPJ(Number(b.dataset.att)).then((u) => (b.querySelector("img").src = u))
+      .catch((e) => { console.error(e); b.title = `Image indisponible : ${e.message}`; });
   }
 });
 $("pop-images").addEventListener("mousedown", (e) => e.preventDefault());
@@ -1511,7 +1515,9 @@ $("pop-images").addEventListener("click", async (e) => {
   const b = e.target.closest("[data-att]");
   if (!b) return;
   const id = Number(b.dataset.att), img = b.querySelector("img");
-  const src = await urlPJ(id);
+  let src;
+  try { src = await urlPJ(id); }
+  catch (err) { console.error(err); return alerte(`Image indisponible : ${err.message}`); }
   editor.chain().focus().setImage({ src, att: id, alt: b.title, width: img.naturalWidth ? Math.min(img.naturalWidth, 250) : 200 }).run();
   $("pop-images").hidden = true;
 });
