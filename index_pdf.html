@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <!-- Politique de sécurité du contenu : n'autorise que le code de ce dépôt et l'API Grist.
      connect-src liste les instances Grist d'où sont téléchargées les pièces jointes :
-     ajouter ici une autre instance si le widget y est utilisé. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://docs.getgrist.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' blob: data:; connect-src 'self' blob: https://grist.numerique.gouv.fr https://docs.getgrist.com https://*.getgrist.com; frame-src blob:; object-src 'self' blob:; base-uri 'none'; form-action 'none'">
+     ajouter ici une autre instance si le widget y est utilisé.
+     'unsafe-eval' : imposé par grist-plugin-api.js, publié par Grist sous forme d'un paquet
+     webpack qui exécute ses modules via eval(). Le code du widget, lui, n'utilise pas eval. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-eval' https://docs.getgrist.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' blob: data:; connect-src 'self' blob: https://grist.numerique.gouv.fr https://docs.getgrist.com https://*.getgrist.com; frame-src blob:; object-src 'self' blob:; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pony Factory – Publipostage PDF pour Grist</title>
 <!-- Bibliothèques embarquées dans vendor/ (versions figées, voir vendor/README.md) -->
