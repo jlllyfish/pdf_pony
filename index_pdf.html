@@ -313,7 +313,7 @@
 // ════════════════════════════════════════════════════════════════
 // Configuration
 // ════════════════════════════════════════════════════════════════
-const VERSION = "p7.6";
+const VERSION = "p7.7";
 const TABLE_MODELES = "Modeles_PDF";
 const COLS_MODELE = { nom: "Nom", contenu: "Contenu", tableRef: "Table_cible", tableNom: "Table_cible_nom",
                       images: "Images", mode: "Mode", nomFichier: "Nom_fichier", miseEnPage: "Mise_en_page" };
@@ -444,19 +444,35 @@ const memoire = {
 // ════════════════════════════════════════════════════════════════
 // Pièces jointes Grist → blob URL
 // ════════════════════════════════════════════════════════════════
-let JETON = null;
 const CACHE_PJ = new Map();
-// Jeton non restreint : en lecture seule, Grist traite l'utilisateur comme lecteur (viewer)
-// et refuse les pièces jointes (403 « Cannot access attachment ») dès que des règles
-// d'accès limitent les lecteurs. Le widget a de toute façon l'accès complet.
-function jeton() {
-  if (!JETON) JETON = grist.docApi.getAccessToken({ readOnly: false }).catch((e) => { JETON = null; throw e; });
-  return JETON;
+// Moindre privilège : on tente d'abord un jeton en lecture seule. Mais en lecture seule,
+// Grist plafonne le rôle à « viewer » et refuse les pièces jointes (403 « Cannot access
+// attachment ») si des règles d'accès limitent les lecteurs : on bascule alors sur un
+// jeton complet, et on s'en souvient pour la session.
+const JETONS = { lecture: null, complet: null };
+let jetonCompletRequis = false;
+function jeton(complet) {
+  const k = complet ? "complet" : "lecture";
+  if (!JETONS[k]) JETONS[k] = grist.docApi.getAccessToken({ readOnly: !complet }).catch((e) => { JETONS[k] = null; throw e; });
+  return JETONS[k];
 }
-async function telechargerPJ(id, reessai = true) {
-  const { token, baseUrl } = await jeton();
-  const r = await fetch(`${baseUrl}/attachments/${id}/download?auth=${token}`);
-  if ((r.status === 401 || r.status === 403) && reessai) { JETON = null; return telechargerPJ(id, false); }
+async function tenterPJ(id, complet, renouveler = false) {
+  if (renouveler) JETONS[complet ? "complet" : "lecture"] = null;
+  const { token, baseUrl } = await jeton(complet);
+  return fetch(`${baseUrl}/attachments/${id}/download?auth=${token}`);
+}
+const refuse = (r) => r.status === 401 || r.status === 403;
+async function telechargerPJ(id) {
+  let r;
+  if (!jetonCompletRequis) {
+    r = await tenterPJ(id, false);
+    if (refuse(r)) r = await tenterPJ(id, false, true);   // jeton expiré
+  }
+  if (!r || refuse(r)) {
+    r = await tenterPJ(id, true);
+    if (refuse(r)) r = await tenterPJ(id, true, true);
+    if (r.ok) jetonCompletRequis = true;
+  }
   if (!r.ok) throw new Error(`Pièce jointe ${id} : HTTP ${r.status} ${(await r.text().catch(() => "")).slice(0, 120)}`);
   return URL.createObjectURL(await r.blob());
 }
