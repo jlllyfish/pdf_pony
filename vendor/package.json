@@ -1,0 +1,19 @@
+{
+  "private": true,
+  "description": "Bibliothèques embarquées dans Pony Factory (versions figées). Voir README.md.",
+  "dependencies": {
+    "@gouvfr/dsfr": "1.13.1",
+    "@tiptap/core": "3.31.3",
+    "@tiptap/extension-image": "3.31.3",
+    "@tiptap/extension-table": "3.31.3",
+    "@tiptap/extension-text-align": "3.31.3",
+    "@tiptap/extension-text-style": "3.31.3",
+    "@tiptap/pm": "3.31.3",
+    "@tiptap/starter-kit": "3.31.3",
+    "@tiptap/suggestion": "3.31.3",
+    "jszip": "3.10.1",
+    "pdfmake": "0.2.20",
+    "remixicon": "4.2.0"
+  },
+  "devDependencies": { "esbuild": "0.28.2" }
+}
